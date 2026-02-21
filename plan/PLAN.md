@@ -35,18 +35,18 @@ via a dropdown. A manual "Rescan" button triggers fresh discovery.
 - [x] `plan/` directory with AGENTS.md, PLAN.md, DECISIONS.md, tasks/
 
 ### Phase 2 — Discovery
-- [ ] Meraki SDK client (`src/discovery/meraki_client.py`)
-- [ ] Fetch organisations and networks
-- [ ] Fetch all devices (MX, MS, MR)
-- [ ] Fetch switch ports with speed, VLAN, PoE capable, PoE active
-- [ ] Fetch CDP/LLDP neighbour data per port
-- [ ] Handle unmanaged/unknown devices on ports
+- [x] Meraki SDK client (`src/discovery/meraki_client.py`)
+- [x] Fetch organisations and networks
+- [x] Fetch all devices (MX, MS, MR)
+- [x] Fetch switch ports with speed, VLAN, PoE capable, PoE active
+- [x] Fetch CDP/LLDP neighbour data per port
+- [x] Handle unmanaged/unknown devices on ports
 
 ### Phase 3 — Database
-- [ ] SQLAlchemy models: `Device`, `Port`, `Link`, `Room`, `DeviceRoom`
-- [ ] Managed and unmanaged device support (name, type, port count, notes, MAC, IP)
-- [ ] `reset_db()` utility
-- [ ] `seed_from_discovery()` utility
+- [x] SQLAlchemy models: `Device`, `Port`, `Link`, `Room`, `DeviceRoom`
+- [x] Managed and unmanaged device support (name, type, port count, notes, MAC, IP)
+- [x] `reset_db()` utility
+- [x] `seed_from_discovery()` utility
 
 ### Phase 4 — API
 - [ ] `POST /scan` — trigger full Meraki rescan

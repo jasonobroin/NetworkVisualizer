@@ -11,6 +11,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from src.db.utils import init_db
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -30,6 +31,7 @@ FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 async def lifespan(app: FastAPI):
     """Application lifespan — runs startup and shutdown logic."""
     logger.info("NetworkVisualizer starting up")
+    init_db()
     yield
     logger.info("NetworkVisualizer shutting down")
 
@@ -69,4 +71,6 @@ async def global_exception_handler(request, exc: Exception) -> JSONResponse:
     """Return structured JSON for all unhandled exceptions."""
     logger.exception("Unhandled exception: %s", exc)
     return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
 

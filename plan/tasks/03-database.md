@@ -92,5 +92,5 @@ utilities for resetting the database and seeding it from discovery data.
 - `reset_db()` must be protected — raise an error if `RUNNING_IN_DOCKER` env var is not `"true"`
 
 ## Status
-[ ] Not started
+[x] Complete
 
