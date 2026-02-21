@@ -11,6 +11,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from src.api.routes import admin, devices, rooms, scan, topology
 from src.db.utils import init_db
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -58,6 +59,14 @@ async def health_check() -> dict:
     return {"status": "ok", "version": "0.1.0"}
 
 
+# Register all API routers under /api prefix
+app.include_router(scan.router, prefix="/api", tags=["discovery"])
+app.include_router(topology.router, prefix="/api", tags=["topology"])
+app.include_router(devices.router, prefix="/api", tags=["devices"])
+app.include_router(rooms.router, prefix="/api", tags=["rooms"])
+app.include_router(admin.router, prefix="/api", tags=["admin"])
+
+
 # Mount static frontend files — must be last so API routes take priority
 if FRONTEND_DIR.exists() and any(FRONTEND_DIR.iterdir()):
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
@@ -71,6 +80,8 @@ async def global_exception_handler(request, exc: Exception) -> JSONResponse:
     """Return structured JSON for all unhandled exceptions."""
     logger.exception("Unhandled exception: %s", exc)
     return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
 
 
 
