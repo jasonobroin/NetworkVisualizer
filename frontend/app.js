@@ -150,6 +150,15 @@ function buildCytoscapeElements(topo) {
         });
     }
 
+    // Build port DB id → port_id string lookup for edge labels
+    // p.id is the DB integer primary key; link.src_port_id references this
+    const portIdMap = {};
+    for (const device of topo.devices) {
+        for (const p of (device.ports || [])) {
+            portIdMap[p.id] = p.port_id;   // e.g. portIdMap[23] = "7"
+        }
+    }
+
     // Edge (link) elements — deduplicate bidirectional links
     const seen = new Set();
     for (const link of topo.links) {
@@ -158,6 +167,8 @@ function buildCytoscapeElements(topo) {
                      Math.max(link.src_device_id, link.dst_device_id)].join('-');
         if (seen.has(key)) continue;
         seen.add(key);
+        const rawPort = link.src_port_id != null ? portIdMap[link.src_port_id] : null;
+        const srcPort = rawPort != null ? `p${rawPort}` : '';
         elements.push({
             data: {
                 id: `link-${link.id}`,
@@ -165,6 +176,7 @@ function buildCytoscapeElements(topo) {
                 target: `device-${link.dst_device_id}`,
                 linkType: link.link_type,
                 linkId: link.id,
+                srcPort,
             },
         });
     }
@@ -180,17 +192,17 @@ function buildCytoscapeStyle() {
             selector: 'node[type="room"]',
             style: {
                 'background-color': '#ecf0f1',
-                'background-opacity': 0.6,
+                'background-opacity': 0.5,
                 'border-color': '#bdc3c7',
                 'border-width': 1.5,
                 'border-style': 'solid',
                 'label': 'data(label)',
                 'text-valign': 'top',
                 'text-halign': 'center',
-                'font-size': '11px',
-                'font-weight': 600,
-                'color': '#555',
-                'padding': '18px',
+                'font-size': '13px',
+                'font-weight': 700,
+                'color': '#444',
+                'padding': '24px',
                 'shape': 'roundrectangle',
             },
         },
@@ -201,9 +213,10 @@ function buildCytoscapeStyle() {
                 'border-style': 'dashed',
                 'border-color': '#95a5a6',
                 'background-color': '#f8f9fa',
+                'background-opacity': 0.3,
             },
         },
-        // Device nodes
+        // All device nodes — base style
         {
             selector: 'node[type="device"]',
             style: {
@@ -211,17 +224,27 @@ function buildCytoscapeStyle() {
                 'label': 'data(label)',
                 'text-valign': 'bottom',
                 'text-halign': 'center',
-                'font-size': '9px',
+                'font-size': '10px',
                 'color': '#2c3e50',
-                'text-margin-y': 4,
-                'width': 36,
-                'height': 36,
-                'shape': 'ellipse',
+                'text-margin-y': 5,
+                'width': 48,
+                'height': 48,
                 'border-width': 2,
                 'border-color': '#fff',
                 'text-wrap': 'wrap',
-                'text-max-width': '80px',
+                'text-max-width': '90px',
+                'shape': 'roundrectangle',
             },
+        },
+        // MR/CW APs — triangle shape
+        {
+            selector: 'node[type="device"][deviceType="mr"]',
+            style: { 'shape': 'triangle', 'width': 44, 'height': 44 },
+        },
+        // MX routers — diamond shape
+        {
+            selector: 'node[type="device"][deviceType="mx"]',
+            style: { 'shape': 'diamond', 'width': 52, 'height': 52 },
         },
         // Unmanaged device — dashed border (isManaged stored as string)
         {
@@ -231,6 +254,7 @@ function buildCytoscapeStyle() {
                 'border-color': '#7f8c8d',
                 'border-width': 2.5,
                 'background-color': '#7f8c8d',
+                'shape': 'hexagon',
             },
         },
         // Selected node
@@ -238,25 +262,48 @@ function buildCytoscapeStyle() {
             selector: 'node:selected',
             style: {
                 'border-color': '#f39c12',
-                'border-width': 3,
+                'border-width': 3.5,
             },
         },
-        // Edges
+        // Edges — base style
         {
             selector: 'edge',
             style: {
-                'width': 2,
-                'line-color': '#95a5a6',
+                'width': 2.5,
+                'line-color': '#7f8c8d',
                 'target-arrow-shape': 'none',
                 'curve-style': 'bezier',
-                'opacity': 0.7,
+                'opacity': 0.85,
+                'label': 'data(srcPort)',
+                'font-size': '9px',
+                'color': '#444',
+                'text-rotation': 'autorotate',
+                'text-margin-y': -7,
+                'text-background-color': '#eaf0f6',
+                'text-background-opacity': 0.8,
+                'text-background-padding': '1px',
             },
+        },
+        // LLDP links — blue-grey
+        {
+            selector: 'edge[linkType="lldp"]',
+            style: { 'line-color': '#5d8aa8', 'width': 2.5 },
+        },
+        // CDP links — teal
+        {
+            selector: 'edge[linkType="cdp"]',
+            style: { 'line-color': '#1abc9c', 'width': 2.5 },
+        },
+        // Manual links — orange
+        {
+            selector: 'edge[linkType="manual"]',
+            style: { 'line-color': '#e67e22', 'line-style': 'dashed', 'width': 2 },
         },
         {
             selector: 'edge:selected',
             style: {
                 'line-color': '#f39c12',
-                'width': 3,
+                'width': 3.5,
                 'opacity': 1,
             },
         },

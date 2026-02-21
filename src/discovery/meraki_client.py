@@ -4,6 +4,10 @@ Meraki Dashboard API discovery client.
 Fetches the full wired network topology from the Meraki Dashboard API including
 devices, switch ports, PoE status, and CDP/LLDP neighbour information.
 
+Uses productTypes filtering at the org level to request only networking
+infrastructure (switch, appliance, wireless, wirelessController) — sensors,
+cameras, and smart-home devices are excluded at the API call level.
+
 Usage:
     from src.discovery.meraki_client import MerakiDiscoveryClient
     client = MerakiDiscoveryClient()
@@ -25,6 +29,10 @@ from src.discovery.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Only fetch these Meraki product types — excludes sensor, camera, cellularGateway,
+# systemsManager, secureConnect, campusGateway
+_INFRA_PRODUCT_TYPES = ["switch", "appliance", "wireless", "wirelessController"]
 
 # Meraki switch models that support PoE on some or all ports.
 # Models ending in "P", "FP", "LP", "POE" are PoE-capable.
@@ -51,9 +59,9 @@ _NON_POE_MODELS = frozenset(
 def _classify_device(model: str) -> DeviceType:
     """Derive a broad DeviceType from a Meraki model string."""
     model_upper = model.upper()
-    if model_upper.startswith("MX"):
+    if model_upper.startswith("MX") or model_upper.startswith("Z"):
         return DeviceType.MX
-    if model_upper.startswith("MS"):
+    if model_upper.startswith("MS") or model_upper.startswith("C9"):
         return DeviceType.MS
     if model_upper.startswith("MR") or model_upper.startswith("CW"):
         return DeviceType.MR
@@ -106,11 +114,12 @@ class MerakiDiscoveryClient:
 
     def run_discovery(self) -> list[DiscoveryResult]:
         """
-        Run a full discovery across all accessible organisations and networks.
+        Run a full discovery across all accessible organisations.
 
         Returns a list of DiscoveryResult objects, one per organisation.
-        Errors encountered for individual devices/networks are collected in
-        DiscoveryResult.errors rather than raising exceptions.
+        Only infrastructure product types are fetched (switch, appliance,
+        wireless, wirelessController) — sensors and cameras are excluded
+        at the API level via the productTypes parameter.
         """
         results: list[DiscoveryResult] = []
 
@@ -132,59 +141,52 @@ class MerakiDiscoveryClient:
         return results
 
     def _discover_org(self, org_id: str, org_name: str) -> DiscoveryResult:
-        """Discover all devices within a single organisation."""
+        """
+        Discover all infrastructure devices within a single organisation.
+
+        Uses getOrganizationDevices with productTypes filtering — a single
+        paginated call per org rather than one call per network. Also fetches
+        the network list once to build a network_id → name lookup.
+        """
         errors: list[str] = []
         all_devices: list[DeviceInfo] = []
 
+        # Build network_id → network_name lookup
+        network_names: dict[str, str] = {}
         try:
             networks = self._dashboard.organizations.getOrganizationNetworks(
                 org_id, total_pages="all"
             )
+            network_names = {n["id"]: n.get("name", n["id"]) for n in networks}
         except meraki.APIError as exc:
-            msg = f"Failed to fetch networks for org {org_id}: {exc}"
+            logger.warning("Could not fetch network names for org %s: %s", org_id, exc)
+
+        # Fetch all infrastructure devices in one call with productTypes filter
+        try:
+            raw_devices = self._dashboard.organizations.getOrganizationDevices(
+                org_id,
+                total_pages="all",
+                productTypes=_INFRA_PRODUCT_TYPES,
+            )
+        except meraki.APIError as exc:
+            msg = f"Failed to fetch devices for org {org_id}: {exc}"
             logger.error(msg)
             return DiscoveryResult(
                 organisation_id=org_id,
                 organisation_name=org_name,
-                network_count=0,
+                network_count=len(network_names),
                 errors=[msg],
             )
 
-        logger.info("Found %d network(s) in org %s", len(networks), org_name)
-
-        for network in networks:
-            net_id = network["id"]
-            net_name = network.get("name", net_id)
-            try:
-                devices = self._discover_network(net_id, net_name)
-                all_devices.extend(devices)
-            except Exception as exc:
-                msg = f"Error discovering network {net_name} ({net_id}): {exc}"
-                logger.error(msg)
-                errors.append(msg)
-
-        return DiscoveryResult(
-            organisation_id=org_id,
-            organisation_name=org_name,
-            network_count=len(networks),
-            devices=all_devices,
-            errors=errors,
+        logger.info(
+            "Fetched %d infrastructure device(s) from org %s (productTypes=%s)",
+            len(raw_devices), org_name, _INFRA_PRODUCT_TYPES,
         )
-
-    def _discover_network(self, net_id: str, net_name: str) -> list[DeviceInfo]:
-        """Discover all devices in a single network."""
-        logger.info("Discovering network: %s (%s)", net_name, net_id)
-        device_infos: list[DeviceInfo] = []
-
-        try:
-            raw_devices = self._dashboard.networks.getNetworkDevices(net_id)
-        except meraki.APIError as exc:
-            logger.error("Failed to fetch devices for network %s: %s", net_name, exc)
-            return device_infos
 
         for dev in raw_devices:
             serial = dev.get("serial", "")
             model = dev.get("model", "UNKNOWN")
+            net_id = dev.get("networkId", "")
             device_type = _classify_device(model)
 
             device_info = DeviceInfo(
@@ -195,22 +197,31 @@ class MerakiDiscoveryClient:
                 mac=dev.get("mac"),
                 ip=dev.get("lanIp"),
                 network_id=net_id,
-                network_name=net_name,
+                network_name=network_names.get(net_id, net_id),
             )
 
-            # Fetch switch port details for MS devices
+            # Fetch switch port details for MS devices only
             if device_type == DeviceType.MS and serial:
-                device_info.ports = self._discover_switch_ports(serial, model)
+                try:
+                    device_info.ports = self._discover_switch_ports(serial, model)
+                except Exception as exc:
+                    msg = f"Error fetching ports for {serial} ({model}): {exc}"
+                    logger.error(msg)
+                    errors.append(msg)
 
-            device_infos.append(device_info)
+            all_devices.append(device_info)
             logger.info(
                 "  Device: %s (%s) — %d port(s)",
-                device_info.name,
-                model,
-                len(device_info.ports),
+                device_info.name, model, len(device_info.ports),
             )
 
-        return device_infos
+        return DiscoveryResult(
+            organisation_id=org_id,
+            organisation_name=org_name,
+            network_count=len(network_names),
+            devices=all_devices,
+            errors=errors,
+        )
 
     def _discover_switch_ports(self, serial: str, model: str) -> list[PortInfo]:
         """

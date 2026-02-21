@@ -179,6 +179,86 @@ def seed_from_discovery(
             synchronize_session="fetch"
         )
 
+        # Build lookup tables for multi-strategy neighbour resolution
+        all_devices = session.query(Device).all()
+
+        # Strategy 1: exact MAC match (normalised lower-case)
+        mac_to_device: dict[str, Device] = {}
+        for dev in all_devices:
+            if dev.mac:
+                mac_to_device[dev.mac.lower().strip()] = dev
+
+        # Strategy 2: name/hostname match (case-insensitive) — used for CDP device IDs
+        name_to_device: dict[str, Device] = {}
+        for dev in all_devices:
+            if dev.name:
+                name_to_device[dev.name.lower().strip()] = dev
+            if dev.serial:
+                name_to_device[dev.serial.lower().strip()] = dev
+
+        def _mac_to_int(mac: str) -> int | None:
+            """Convert colon-separated MAC to integer, return None on error."""
+            try:
+                return int(mac.replace(":", "").replace("-", ""), 16)
+            except ValueError:
+                return None
+
+        def _int_to_mac(n: int) -> str:
+            """Convert integer back to colon-separated MAC string."""
+            return ":".join(f"{(n >> (i * 8)) & 0xFF:02x}" for i in reversed(range(6)))
+
+        def _resolve_neighbour(device_id: str, platform: str | None) -> Device | None:
+            """
+            Resolve an LLDP/CDP neighbour device_id to a Device in the database.
+
+            Strategies tried in order:
+            1. Exact MAC match — works for most managed Meraki devices
+            2. MAC ± small offset — Meraki APs advertise a bridge/radio MAC via LLDP
+               that differs from their management MAC by a small offset (typically
+               within ±16 of the last two octets)
+            3. Case-insensitive name/hostname match — CDP device_id is often a hostname
+            4. Serial number match — some devices advertise their serial via CDP
+            """
+            normalised = device_id.lower().strip()
+
+            # Strategy 1: exact MAC
+            if ":" in normalised or "-" in normalised:
+                match = mac_to_device.get(normalised.replace("-", ":"))
+                if match:
+                    return match
+
+                # Strategy 2: MAC ± offset (handles Meraki AP radio vs management MAC)
+                n = _mac_to_int(normalised)
+                if n is not None:
+                    for offset in range(-16, 17):
+                        if offset == 0:
+                            continue
+                        candidate = _int_to_mac(n + offset)
+                        match = mac_to_device.get(candidate)
+                        if match:
+                            logger.debug(
+                                "Resolved %s via MAC offset %+d → %s (%s)",
+                                device_id, offset, match.name, candidate,
+                            )
+                            return match
+
+            # Strategy 3: hostname / name match (CDP often sends sysName)
+            match = name_to_device.get(normalised)
+            if match:
+                return match
+
+            # Strategy 4: platform string contains a serial or name we know
+            if platform:
+                for name, dev in name_to_device.items():
+                    if name and name in platform.lower():
+                        return dev
+
+            return None
+
+        # Track already-added links to deduplicate bidirectional LLDP pairs
+        # Key: frozenset of {src_device_id, dst_device_id}
+        seen_links: set[frozenset] = set()
+
         for result in discovery_results:
             for dev_info in result.devices:
                 src_device = serial_to_device.get(dev_info.serial)
@@ -189,23 +269,30 @@ def seed_from_discovery(
                     if not neighbour or not neighbour.device_id:
                         continue
 
-                    # Try to find the destination device by its Meraki serial or name
-                    dst_device = (
-                        session.query(Device)
-                        .filter(
-                            (Device.serial == neighbour.device_id)
-                            | (Device.name == neighbour.device_id)
-                        )
-                        .first()
+                    dst_device = _resolve_neighbour(
+                        neighbour.device_id, neighbour.platform
                     )
+
+                    if dst_device is None:
+                        logger.debug(
+                            "Could not resolve LLDP/CDP neighbour %r on %s port %s",
+                            neighbour.device_id, dev_info.serial, port_info.port_id,
+                        )
+                        continue
+
+                    # Deduplicate: LLDP reports both sides of every link
+                    link_key = frozenset([src_device.id, dst_device.id])
+                    if link_key in seen_links:
+                        continue
+                    seen_links.add(link_key)
 
                     src_port = port_lookup.get((src_device.id, port_info.port_id))
 
                     link = Link(
                         src_device_id=src_device.id,
                         src_port_id=src_port.id if src_port else None,
-                        dst_device_id=dst_device.id if dst_device else None,
-                        dst_port_id=None,  # We don't always know the remote port ID
+                        dst_device_id=dst_device.id,
+                        dst_port_id=None,
                         link_type=neighbour.protocol,
                         notes=f"{neighbour.platform or ''} on port {neighbour.port_id or ''}".strip(),
                     )
