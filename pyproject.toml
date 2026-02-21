@@ -1,0 +1,13 @@
+[project]
+name = "network-visualizer"
+version = "0.1.0"
+description = "Web-based Meraki network topology visualizer"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.129.2",
+    "meraki>=2.1.2",
+    "python-dotenv>=1.2.1",
+    "sqlalchemy>=2.0.46",
+    "uvicorn[standard]>=0.41.0",
+]

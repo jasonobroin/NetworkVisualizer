@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - RUNNING_IN_DOCKER=true
+      - DATABASE_URL=/data/network.db
+    volumes:
+      - network_db:/data
+    restart: unless-stopped
+
+volumes:
+  network_db:
+

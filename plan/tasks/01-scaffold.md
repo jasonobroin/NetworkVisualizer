@@ -31,5 +31,5 @@ After this task, `docker compose up --build` should start a running (empty) Fast
 - README.md must include: Prerequisites, Setup, Run, Rescan, Reset DB, and Future Development sections
 
 ## Status
-[ ] Not started
+[x] Complete
 

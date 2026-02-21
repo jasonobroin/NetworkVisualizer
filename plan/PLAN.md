@@ -28,11 +28,11 @@ via a dropdown. A manual "Rescan" button triggers fresh discovery.
 ## Feature Checklist
 
 ### Phase 1 — Foundation
-- [ ] Git repo initialised with `.gitignore` and `.env.example`
-- [ ] `pyproject.toml` configured with `uv`
-- [ ] `Dockerfile` and `docker-compose.yml` created
-- [ ] `README.md` written with setup and run instructions
-- [ ] `plan/` directory with AGENTS.md, PLAN.md, DECISIONS.md, tasks/
+- [x] Git repo initialised with `.gitignore` and `.env.example`
+- [x] `pyproject.toml` configured with `uv`
+- [x] `Dockerfile` and `docker-compose.yml` created
+- [x] `README.md` written with setup and run instructions
+- [x] `plan/` directory with AGENTS.md, PLAN.md, DECISIONS.md, tasks/
 
 ### Phase 2 — Discovery
 - [ ] Meraki SDK client (`src/discovery/meraki_client.py`)
