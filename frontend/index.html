@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetworkVisualizer</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Cytoscape.js core -->
+    <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+    <!-- cose-bilkent layout for compound nodes — must load AFTER cytoscape -->
+    <script src="https://unpkg.com/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
+</head>
+<body>
+
+<!-- ── Toolbar ──────────────────────────────────────────────── -->
+<div id="toolbar">
+    <h1>🌐 NetworkVisualizer</h1>
+    <span id="scan-status"></span>
+    <button id="btn-scan" class="btn btn-primary">⟳ Rescan Network</button>
+    <button id="btn-reset" class="btn btn-danger">✕ Reset Database</button>
+</div>
+
+<!-- ── Main area ─────────────────────────────────────────────── -->
+<div id="main">
+
+    <!-- Graph canvas — Cytoscape needs a clean container with no children -->
+    <div id="cy-wrapper" style="flex:1;position:relative;">
+        <div id="cy" style="width:100%;height:100%;"></div>
+        <!-- Empty state overlay — sits above the canvas, not inside cy -->
+        <div id="empty-state" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:#7f8c8d;pointer-events:none;">
+            <h2>No devices found</h2>
+            <p>Click <strong>Rescan Network</strong> to discover your Meraki topology.</p>
+        </div>
+    </div>
+
+    <!-- Detail panel -->
+    <div id="detail-panel">
+        <h2>Device / Link Detail</h2>
+        <div id="detail-content">
+            <p id="detail-placeholder">Click a device or link to see details.</p>
+        </div>
+    </div>
+
+</div>
+
+<!-- ── Spinner overlay ──────────────────────────────────────── -->
+<div id="spinner-overlay">
+    <div class="spinner"></div>
+    <span class="spinner-msg">Loading…</span>
+</div>
+
+<!-- ── Toast notification ───────────────────────────────────── -->
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
+

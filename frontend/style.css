@@ -1,0 +1,282 @@
+/* NetworkVisualizer — main stylesheet */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f4f6f8;
+    color: #2c3e50;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ── Toolbar ─────────────────────────────────────────── */
+#toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #2c3e50;
+    color: #fff;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    z-index: 10;
+}
+
+#toolbar h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    flex: 1;
+    letter-spacing: 0.03em;
+}
+
+.btn {
+    padding: 7px 14px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: opacity 0.15s, background 0.15s;
+}
+
+.btn:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary   { background: #2980b9; color: #fff; }
+.btn-danger    { background: #c0392b; color: #fff; }
+.btn-success   { background: #27ae60; color: #fff; }
+
+#scan-status {
+    font-size: 0.8rem;
+    color: #bdc3c7;
+    min-width: 160px;
+}
+
+/* ── Main layout ─────────────────────────────────────── */
+#main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ── Graph pane ──────────────────────────────────────── */
+#cy-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+#cy {
+    width: 100%;
+    height: 100%;
+    background: #eaf0f6;
+}
+
+#empty-state {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #7f8c8d;
+    pointer-events: none;
+}
+
+#empty-state h2 { font-size: 1.2rem; margin-bottom: 6px; }
+#empty-state p  { font-size: 0.85rem; }
+
+/* ── Detail panel ────────────────────────────────────── */
+#detail-panel {
+    width: 360px;
+    min-width: 300px;
+    background: #fff;
+    border-left: 1px solid #dce1e7;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+#detail-panel h2 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 12px 14px;
+    background: #ecf0f1;
+    border-bottom: 1px solid #dce1e7;
+    flex-shrink: 0;
+}
+
+#detail-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 14px;
+}
+
+#detail-placeholder {
+    color: #95a5a6;
+    font-size: 0.85rem;
+    margin-top: 8px;
+}
+
+/* ── Detail sections ─────────────────────────────────── */
+.detail-section {
+    margin-bottom: 14px;
+}
+
+.detail-section h3 {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #7f8c8d;
+    margin-bottom: 6px;
+    border-bottom: 1px solid #ecf0f1;
+    padding-bottom: 4px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.83rem;
+    padding: 3px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.info-row .label { color: #7f8c8d; }
+.info-row .value { font-weight: 500; max-width: 200px; text-align: right; word-break: break-all; }
+
+/* ── Port table ──────────────────────────────────────── */
+.port-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.76rem;
+}
+
+.port-table th {
+    background: #ecf0f1;
+    padding: 4px 6px;
+    text-align: left;
+    font-weight: 600;
+    color: #555;
+    position: sticky;
+    top: 0;
+}
+
+.port-table td {
+    padding: 4px 6px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: top;
+}
+
+.port-table tr:hover td { background: #fafafa; }
+
+.badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.badge-up      { background: #d5f5e3; color: #1e8449; }
+.badge-down    { background: #fadbd8; color: #922b21; }
+.badge-unknown { background: #eaecee; color: #566573; }
+.badge-poe-on  { background: #d6eaf8; color: #1a5276; }
+.badge-poe-off { background: #eaecee; color: #566573; }
+.badge-no-poe  { background: #fef9e7; color: #7d6608; }
+
+/* ── Room dropdown ────────────────────────────────────── */
+.room-select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    background: #fff;
+    cursor: pointer;
+    margin-top: 4px;
+}
+
+/* ── Annotation form ─────────────────────────────────── */
+.annotation-form label {
+    display: block;
+    font-size: 0.78rem;
+    color: #7f8c8d;
+    margin-top: 8px;
+    margin-bottom: 2px;
+}
+
+.annotation-form input,
+.annotation-form select,
+.annotation-form textarea {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 0.83rem;
+}
+
+.annotation-form textarea { resize: vertical; min-height: 60px; }
+
+.annotation-form .btn {
+    margin-top: 10px;
+    width: 100%;
+    padding: 8px;
+}
+
+/* ── Spinner overlay ─────────────────────────────────── */
+#spinner-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    color: #fff;
+    font-size: 1rem;
+}
+
+#spinner-overlay.active { display: flex; }
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toast notifications ─────────────────────────────── */
+#toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2c3e50;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 2000;
+    pointer-events: none;
+}
+
+#toast.visible { opacity: 1; }
+#toast.error   { background: #c0392b; }
+#toast.success { background: #27ae60; }
+
