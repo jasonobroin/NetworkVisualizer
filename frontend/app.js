@@ -50,6 +50,7 @@ function savePositions() {
     if (!cy) return;
     const pos = {};
     cy.nodes('[type="device"]').forEach(n => { pos[n.id()] = n.position(); });
+    savedPositions = pos;  // keep in-memory state current
     localStorage.setItem(POSITIONS_KEY, JSON.stringify(pos));
 }
 
@@ -379,7 +380,27 @@ function renderGraph(topo) {
 
     const deviceEls = elements.filter(el => el.data?.type === 'device');
     const savedCount = deviceEls.filter(el => el.position).length;
-    const usePreset = savedCount >= Math.ceil(deviceEls.length / 2);
+    const unsavedEls = deviceEls.filter(el => !el.position);
+    const usePreset  = savedCount >= Math.ceil(deviceEls.length / 2);
+
+    // Give unsaved nodes a staggered starting position so they don't all
+    // pile up at {0,0} when a preset layout is used.  Place them in a row
+    // below/beside the existing nodes so the user can drag them into place.
+    if (usePreset && unsavedEls.length > 0) {
+        // Find the bounding box of saved nodes to place new ones below it
+        const savedPositionList = deviceEls
+            .filter(el => el.position)
+            .map(el => el.position);
+        const maxY = savedPositionList.length
+            ? Math.max(...savedPositionList.map(p => p.y)) + 120
+            : 300;
+        const startX = savedPositionList.length
+            ? Math.min(...savedPositionList.map(p => p.x))
+            : 100;
+        unsavedEls.forEach((el, i) => {
+            el.position = { x: startX + i * 120, y: maxY };
+        });
+    }
 
     const layout = usePreset
         ? { name: 'preset', padding: 40, fit: savedCount < deviceEls.length }
@@ -854,6 +875,10 @@ function escHtml(str) {
 }
 
 async function reloadGraph() {
+    // Capture current positions from the live graph before destroying it.
+    // This ensures nodes that were placed (dragged or staggered) don't lose
+    // their position when the graph is rebuilt after a room change etc.
+    if (cy) savePositions();
     await fetchTopology();
     renderGraph(topology);
 }
