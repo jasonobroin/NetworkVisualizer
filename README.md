@@ -88,6 +88,11 @@ uv sync
 uv run uvicorn src.api.main:app --reload --port 8000
 ```
 
+> **PyCharm users:** After running `uv sync`, configure the project interpreter to use
+> `.venv/bin/python3.12` inside the project directory. Go to
+> *Settings → Python Interpreter → Add → Existing Environment* and point it at
+> `.venv/bin/python3.12`. This resolves all "Unresolved reference" warnings.
+
 Set environment variables locally (or ensure `.env` is present):
 
 ```bash
@@ -169,4 +174,5 @@ This project uses **GitHub Copilot Agent mode** in PyCharm for AI-assisted devel
 | Meraki API | `meraki` Python SDK |
 | Frontend | HTML/JS + Cytoscape.js |
 | Container | Single Docker container |
+
 

@@ -78,5 +78,5 @@ Wired links connect devices. A side panel shows port detail when a device or lin
 - Responsive layout is nice-to-have but not required for v1
 
 ## Status
-[ ] Not started
+[x] Complete
 

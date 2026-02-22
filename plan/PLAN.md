@@ -49,31 +49,47 @@ via a dropdown. A manual "Rescan" button triggers fresh discovery.
 - [x] `seed_from_discovery()` utility
 
 ### Phase 4 — API
-- [ ] `POST /scan` — trigger full Meraki rescan
-- [ ] `GET /topology` — return full graph JSON for frontend
-- [ ] `PATCH /device/{id}` — annotate unmanaged device
-- [ ] `PATCH /device/{id}/room` — assign device to room
-- [ ] `DELETE /db` — reset database (with confirmation token)
+- [x] `POST /scan` — trigger full Meraki rescan
+- [x] `GET /topology` — return full graph JSON for frontend
+- [x] `PATCH /device/{id}` — annotate unmanaged device
+- [x] `PATCH /device/{id}/room` — assign device to room
+- [x] `DELETE /db` — reset database (with confirmation token)
 
 ### Phase 5 — Frontend
-- [ ] Cytoscape.js compound graph (rooms → devices → links)
-- [ ] Port detail side-panel (PoE capable/active, speed, VLAN, neighbour)
-- [ ] Room dropdown reassignment
-- [ ] "Rescan Network" button
-- [ ] "Reset Database" button with confirmation prompt
-- [ ] Unmanaged device annotation form (name, type, port count, notes, MAC, IP)
+- [x] Cytoscape.js flat graph (devices + links, no compound nodes)
+- [x] Port detail side-panel (PoE capable/active, speed, VLAN, neighbour)
+- [x] Room assignment via colour-coded border rings + legend panel
+- [x] Room dropdown reassignment with inline "new room" creation
+- [x] "Rescan Network" button with spinner
+- [x] "Reset Layout" button (clears localStorage positions)
+- [x] "Reset Database" button with confirmation prompt
+- [x] Unmanaged device annotation form (name, type, port count, notes, MAC, IP)
+- [x] Node positions persisted in localStorage; auto-layout on first load
+- [x] Edge labels show source port number; colours by link type (LLDP/CDP/manual)
 
 ### Phase 6 — Docker & Docs
-- [ ] Finalised Dockerfile (python:3.12-slim + uv)
-- [ ] docker-compose.yml with named SQLite volume and .env injection
-- [ ] README.md complete with Future Development section
+- [x] Finalised Dockerfile (python:3.12-slim + uv)
+- [x] docker-compose.yml with named SQLite volume and .env injection
+- [x] README.md complete with Future Development section
+
+---
+
+## Post-Launch Fixes
+
+- [x] Meraki API `productTypes` filter — sensors/cameras excluded at API level
+- [x] LLDP link resolution via MAC address matching (not serial/name)
+- [x] MAC ±offset resolution for Meraki AP radio vs management MAC
+- [x] CDP hostname matching for non-Meraki devices (e.g. Catalyst 9800-L)
+- [x] Bidirectional LLDP deduplication
+- [x] Removed compound/parent room nodes (caused large overlapping boxes)
+- [x] Room membership shown via node border ring colour + legend
 
 ---
 
 ## Future Development (Post-Phase-6)
 
 - Cisco Catalyst support (SSH/NETCONF)
-- Drag-and-drop room layout repositioning
+- Drag-and-drop room layout repositioning (Option C — two-level view)
 - Continuous background polling option
 - MCP server integration for richer agent tooling
 - Port utilisation history / change log

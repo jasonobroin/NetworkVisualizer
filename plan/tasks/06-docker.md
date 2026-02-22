@@ -117,5 +117,5 @@ This project uses GitHub Copilot Agent mode in PyCharm for AI-assisted developme
 - All paths in scripts/Makefile must be properly escaped (see AGENTS.md §1)
 
 ## Status
-[ ] Not started
+[x] Complete
 
