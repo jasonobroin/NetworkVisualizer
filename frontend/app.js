@@ -478,18 +478,18 @@ function renderLegend(topo) {
         html += '</div>';
     }
 
-    html += `<div class="legend-section"><strong>Device type</strong>
-        <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.ms};"><img src="${DEVICE_ICONS.ms}"></span> Switch (MS)</div>
-        <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.mx};"><img src="${DEVICE_ICONS.mx}"></span> Firewall (MX)</div>
-        <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.mr};"><img src="${DEVICE_ICONS.mr}"></span> Wireless AP (MR/CW)</div>
-        <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.mv};"><img src="${DEVICE_ICONS.mv}"></span> Camera (MV)</div>
-        <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.router};"><img src="${DEVICE_ICONS.router}"></span> Router</div>
-        <div class="legend-item"><span class="legend-icon" style="background:#7f8c8d;border:2px dashed #566573;"><img src="${DEVICE_ICONS.other}"></span> Unmanaged</div>
+    html += `<div class="legend-section"><strong>Device type</strong><div class="legend-hint">Click to highlight</div>
+        <div class="legend-item legend-type-item" data-device-type="ms" onclick="handleDeviceTypeHighlight('ms')"><span class="legend-icon" style="background:${DEVICE_COLORS.ms};"><img src="${DEVICE_ICONS.ms}"></span> Switch (MS)</div>
+        <div class="legend-item legend-type-item" data-device-type="mx" onclick="handleDeviceTypeHighlight('mx')"><span class="legend-icon" style="background:${DEVICE_COLORS.mx};"><img src="${DEVICE_ICONS.mx}"></span> Firewall (MX)</div>
+        <div class="legend-item legend-type-item" data-device-type="mr" onclick="handleDeviceTypeHighlight('mr')"><span class="legend-icon" style="background:${DEVICE_COLORS.mr};"><img src="${DEVICE_ICONS.mr}"></span> Wireless AP (MR/CW)</div>
+        <div class="legend-item legend-type-item" data-device-type="mv" onclick="handleDeviceTypeHighlight('mv')"><span class="legend-icon" style="background:${DEVICE_COLORS.mv};"><img src="${DEVICE_ICONS.mv}"></span> Camera (MV)</div>
+        <div class="legend-item legend-type-item" data-device-type="router" onclick="handleDeviceTypeHighlight('router')"><span class="legend-icon" style="background:${DEVICE_COLORS.router};"><img src="${DEVICE_ICONS.router}"></span> Router</div>
+        <div class="legend-item legend-type-item" data-device-type="other" onclick="handleDeviceTypeHighlight('other')"><span class="legend-icon" style="background:#7f8c8d;border:2px dashed #566573;"><img src="${DEVICE_ICONS.other}"></span> Unmanaged</div>
     </div>
-    <div class="legend-section"><strong>Links</strong>
-        <div class="legend-item"><span class="legend-line" style="background:#5d8aa8;"></span> LLDP</div>
-        <div class="legend-item"><span class="legend-line" style="background:#1abc9c;"></span> CDP</div>
-        <div class="legend-item"><span class="legend-line" style="background:#e67e22;border-top:2px dashed #e67e22;height:0;"></span> Manual</div>
+    <div class="legend-section"><strong>Links</strong><div class="legend-hint">Click to highlight</div>
+        <div class="legend-item legend-type-item" data-link-type="lldp" onclick="handleLinkTypeHighlight('lldp')"><span class="legend-line" style="background:#5d8aa8;"></span> LLDP</div>
+        <div class="legend-item legend-type-item" data-link-type="cdp" onclick="handleLinkTypeHighlight('cdp')"><span class="legend-line" style="background:#1abc9c;"></span> CDP</div>
+        <div class="legend-item legend-type-item" data-link-type="manual" onclick="handleLinkTypeHighlight('manual')"><span class="legend-line" style="background:#e67e22;border-top:2px dashed #e67e22;height:0;"></span> Manual</div>
     </div>`;
 
     el.innerHTML = html;
@@ -627,13 +627,41 @@ function hidePortPanel() {
     document.getElementById('port-panel').classList.remove('visible');
 }
 
-let _highlightedLinkId = null;  // track currently highlighted link
-let _activeRoomId      = null;  // track currently highlighted room
+let _highlightedLinkId  = null;  // port-panel edge highlight
+let _activeRoomId       = null;  // legend room highlight
+let _activeDeviceType   = null;  // legend device type highlight
+let _activeLinkType     = null;  // legend link type highlight
+let _savedViewport      = null;  // viewport before any highlight, for restore
+
+function _saveViewport() {
+    if (!cy || _savedViewport) return;  // only save once per highlight session
+    _savedViewport = { zoom: cy.zoom(), pan: { ...cy.pan() } };
+}
+
+function _restoreViewport() {
+    if (!cy || !_savedViewport) return;
+    cy.animate({ zoom: _savedViewport.zoom, pan: _savedViewport.pan, duration: 350, easing: 'ease-in-out-cubic' });
+    _savedViewport = null;
+}
+
+/** Clear every highlight type and restore the original viewport. */
+function clearAllHighlights() {
+    if (!cy) return;
+    cy.nodes().removeClass('dimmed room-highlighted');
+    cy.edges().removeClass('dimmed highlighted');
+    clearHighlight();          // clears port-panel edge state
+    _activeRoomId     = null;
+    _activeDeviceType = null;
+    _activeLinkType   = null;
+    document.querySelectorAll('.legend-room-item, .legend-type-item').forEach(el =>
+        el.classList.remove('legend-room-active')
+    );
+    _restoreViewport();
+}
 
 function highlightRoom(roomId) {
-    /** Dim all nodes not in roomId, highlight those that are, fit view to them. */
-    if (!cy) return;
-    clearRoomHighlight(false);  // clear previous without resetting _activeRoomId yet
+    clearAllHighlights();
+    _saveViewport();
 
     const matchFn = roomId === 'unassigned'
         ? n => !n.data('roomId')
@@ -644,12 +672,8 @@ function highlightRoom(roomId) {
 
     outRoom.addClass('dimmed');
     inRoom.addClass('room-highlighted');
-
-    // Also dim edges that don't connect two in-room nodes
     cy.edges().forEach(e => {
-        const srcIn = inRoom.has(e.source());
-        const dstIn = inRoom.has(e.target());
-        if (!srcIn && !dstIn) e.addClass('dimmed');
+        if (!inRoom.has(e.source()) && !inRoom.has(e.target())) e.addClass('dimmed');
     });
 
     if (inRoom.length) {
@@ -657,32 +681,82 @@ function highlightRoom(roomId) {
     }
 
     _activeRoomId = roomId;
-
-    // Mark the active legend item
-    document.querySelectorAll('.legend-room-item').forEach(el => {
-        el.classList.toggle('legend-room-active', String(el.dataset.roomId) === String(roomId));
-    });
+    document.querySelectorAll('.legend-room-item').forEach(el =>
+        el.classList.toggle('legend-room-active', String(el.dataset.roomId) === String(roomId))
+    );
 }
 
-function clearRoomHighlight(resetTracker = true) {
-    /** Remove room highlight classes and restore normal opacity. */
-    if (!cy) return;
-    cy.nodes().removeClass('dimmed room-highlighted');
-    cy.edges().removeClass('dimmed');
-    if (resetTracker) {
-        _activeRoomId = null;
-        document.querySelectorAll('.legend-room-item').forEach(el => el.classList.remove('legend-room-active'));
-    }
+function clearRoomHighlight() {
+    clearAllHighlights();
 }
 
 function handleRoomHighlight(roomId) {
-    /** Toggle: clicking the active room clears it; clicking another highlights it. */
     if (_activeRoomId !== null && String(_activeRoomId) === String(roomId)) {
-        clearRoomHighlight();
+        clearAllHighlights();
     } else {
-        // Clear any port/edge highlight first
-        clearHighlight();
         highlightRoom(roomId);
+    }
+}
+
+function highlightDeviceType(deviceType) {
+    clearAllHighlights();
+    _saveViewport();
+
+    const inType  = cy.nodes(`[type="device"][deviceType="${deviceType}"]`);
+    const outType = cy.nodes(`[type="device"]`).not(inType);
+
+    outType.addClass('dimmed');
+    inType.addClass('room-highlighted');
+    cy.edges().forEach(e => {
+        if (!inType.has(e.source()) && !inType.has(e.target())) e.addClass('dimmed');
+    });
+
+    if (inType.length) {
+        cy.animate({ fit: { eles: inType, padding: 80 }, duration: 350, easing: 'ease-in-out-cubic' });
+    }
+
+    _activeDeviceType = deviceType;
+    document.querySelectorAll('.legend-type-item[data-device-type]').forEach(el =>
+        el.classList.toggle('legend-room-active', el.dataset.deviceType === deviceType)
+    );
+}
+
+function handleDeviceTypeHighlight(deviceType) {
+    if (_activeDeviceType === deviceType) {
+        clearAllHighlights();
+    } else {
+        highlightDeviceType(deviceType);
+    }
+}
+
+function highlightLinkType(linkType) {
+    clearAllHighlights();
+    _saveViewport();
+
+    const matchEdges = cy.edges(`[linkType="${linkType}"]`);
+    const otherEdges = cy.edges().not(matchEdges);
+    const matchNodes = matchEdges.connectedNodes();
+    const otherNodes = cy.nodes('[type="device"]').not(matchNodes);
+
+    otherEdges.addClass('dimmed');
+    otherNodes.addClass('dimmed');
+    matchNodes.addClass('room-highlighted');
+
+    if (matchEdges.length) {
+        cy.animate({ fit: { eles: matchEdges.union(matchNodes), padding: 80 }, duration: 350, easing: 'ease-in-out-cubic' });
+    }
+
+    _activeLinkType = linkType;
+    document.querySelectorAll('.legend-type-item[data-link-type]').forEach(el =>
+        el.classList.toggle('legend-room-active', el.dataset.linkType === linkType)
+    );
+}
+
+function handleLinkTypeHighlight(linkType) {
+    if (_activeLinkType === linkType) {
+        clearAllHighlights();
+    } else {
+        highlightLinkType(linkType);
     }
 }
 
@@ -818,8 +892,7 @@ function attachGraphEvents() {
     cy.on('tap', evt => {
         if (evt.target === cy) {
             showPlaceholder();
-            clearHighlight();
-            clearRoomHighlight();
+            clearAllHighlights();
         }
     });
 }

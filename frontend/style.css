@@ -181,7 +181,8 @@ body {
     margin-bottom: 3px;
 }
 
-.legend-room-item {
+.legend-room-item,
+.legend-type-item {
     cursor: pointer;
     border-radius: 4px;
     padding: 2px 4px;
@@ -189,7 +190,8 @@ body {
     transition: background 0.15s;
 }
 
-.legend-room-item:hover {
+.legend-room-item:hover,
+.legend-type-item:hover {
     background: rgba(0,0,0,0.06);
 }
 
@@ -198,7 +200,9 @@ body {
     font-weight: 600;
 }
 
-.legend-room-active .legend-swatch {
+.legend-room-active .legend-swatch,
+.legend-room-active .legend-icon,
+.legend-room-active .legend-line {
     box-shadow: 0 0 0 2px rgba(52,152,219,0.5);
 }
 
