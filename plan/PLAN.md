@@ -91,6 +91,12 @@ via a dropdown. A manual "Rescan" button triggers fresh discovery.
 
 ---
 
+## Unsolved Issues
+
+- [ ] **SVG node icon vertical alignment** — icons render in the upper portion of nodes in Cytoscape.js. Root cause: `background-fit: contain` ignores `background-position-y`; `background-fit: none` with `background-offset` uses top-left anchor semantics, not centre. Attempts to compensate via SVG viewBox padding (10px all sides) and `background-clip: node` did not produce visible improvement. Workaround: acceptable for now. Possible fix: use a canvas-based icon renderer or switch to a Cytoscape extension that supports HTML node content.
+
+---
+
 ## Future Development (Post-Phase-6)
 
 - Cisco Catalyst support (SSH/NETCONF)
