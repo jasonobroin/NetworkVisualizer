@@ -17,6 +17,7 @@ class DeviceType(StrEnum):
     MX = "mx"
     MS = "ms"
     MR = "mr"
+    MV = "mv"
     OTHER = "other"
 
 

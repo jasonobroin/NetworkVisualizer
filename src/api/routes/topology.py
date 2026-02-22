@@ -14,16 +14,16 @@ from src.db.models import Device, DeviceRoom, Link, Room
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Model prefixes that indicate sensor/camera/smart-home devices — not wired infra
-_SENSOR_MODEL_PREFIXES = ("MT", "MV", "HS-", "SM", "MC", "MG", "Z")
+# Model prefixes that indicate sensor/smart-home devices — not wired infra
+_SENSOR_MODEL_PREFIXES = ("MT", "HS-", "SM", "MC", "MG")
 
 
 def _is_infrastructure(device: Device) -> bool:
     """
     Return True if this device is wired network infrastructure.
 
-    Filters out Meraki sensors (MT*), cameras (MV*), smart home (HS-*),
-    and other non-networking devices. Keeps MS, MX, MR, CW, unmanaged.
+    Filters out Meraki sensors (MT*) and smart-home devices (HS-*).
+    Keeps MS, MX, MR, CW, MV cameras, and unmanaged devices.
     """
     if not device.is_managed:
         return True  # Always show manually-added unmanaged devices
@@ -58,15 +58,15 @@ def _build_device_read(device: Device, room_id: int | None, room_name: str | Non
 
 @router.get("/topology", response_model=TopologyResponse, summary="Get full network topology graph")
 def get_topology(
-    wired_only: bool = Query(default=True, description="Exclude sensors, cameras, and smart-home devices"),
+    wired_only: bool = Query(default=True, description="Exclude sensors and smart-home devices"),
     db: Session = Depends(get_db),
 ) -> TopologyResponse:
     """
     Return the full network topology as a JSON payload for Cytoscape.js.
 
-    By default (wired_only=true) only network infrastructure devices are returned:
-    switches (MS), routers/firewalls (MX), wireless APs (MR/CW), and unmanaged devices.
-    Sensors (MT*), cameras (MV*), and smart-home devices (HS-*) are excluded.
+    By default (wired_only=true) only network devices are returned:
+    switches (MS), routers/firewalls (MX), wireless APs (MR/CW), cameras (MV),
+    and unmanaged devices.  Sensors (MT*) and smart-home devices are excluded.
 
     Pass ?wired_only=false to include all discovered devices.
     """

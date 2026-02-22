@@ -183,6 +183,17 @@ const DEVICE_ICONS = {
         <line x1="17" y1="20" x2="38" y2="20" stroke="white" stroke-width="3" stroke-linecap="round"/>
         <line x1="17" y1="44" x2="38" y2="44" stroke="white" stroke-width="3" stroke-linecap="round"/>
     </svg>`),
+
+    // MV camera — lens circle with crosshairs and a small body/mount
+    mv: _svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <circle cx="32" cy="30" r="16" fill="none" stroke="white" stroke-width="4"/>
+        <circle cx="32" cy="30" r="7"  fill="none" stroke="white" stroke-width="3"/>
+        <line x1="32" y1="14" x2="32" y2="10" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="32" y1="46" x2="32" y2="50" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="16" y1="30" x2="12" y2="30" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="48" y1="30" x2="52" y2="30" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <rect x="24" y="50" width="16" height="6" rx="2" fill="none" stroke="white" stroke-width="3"/>
+    </svg>`),
 };
 
 // Tinted background colours — slightly desaturated so the white icon pops
@@ -190,6 +201,7 @@ const DEVICE_COLORS = {
     mx:     '#c07a3a',   // warm brown-orange
     ms:     '#2471a3',   // steel blue
     mr:     '#1e8449',   // forest green
+    mv:     '#6c3483',   // purple — cameras
     router: '#922b21',   // dark red
     other:  '#626567',   // mid grey
 };
@@ -440,6 +452,7 @@ function renderLegend(topo) {
         <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.ms};"><img src="${DEVICE_ICONS.ms}"></span> Switch (MS)</div>
         <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.mx};"><img src="${DEVICE_ICONS.mx}"></span> Firewall (MX)</div>
         <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.mr};"><img src="${DEVICE_ICONS.mr}"></span> Wireless AP (MR/CW)</div>
+        <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.mv};"><img src="${DEVICE_ICONS.mv}"></span> Camera (MV)</div>
         <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.router};"><img src="${DEVICE_ICONS.router}"></span> Router</div>
         <div class="legend-item"><span class="legend-icon" style="background:#7f8c8d;border:2px dashed #566573;"><img src="${DEVICE_ICONS.other}"></span> Unmanaged</div>
     </div>

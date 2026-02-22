@@ -30,9 +30,9 @@ from src.discovery.models import (
 
 logger = logging.getLogger(__name__)
 
-# Only fetch these Meraki product types — excludes sensor, camera, cellularGateway,
+# Only fetch these Meraki product types — excludes sensor, cellularGateway,
 # systemsManager, secureConnect, campusGateway
-_INFRA_PRODUCT_TYPES = ["switch", "appliance", "wireless", "wirelessController"]
+_INFRA_PRODUCT_TYPES = ["switch", "appliance", "wireless", "wirelessController", "camera"]
 
 # Meraki switch models that support PoE on some or all ports.
 # Models ending in "P", "FP", "LP", "POE" are PoE-capable.
@@ -87,6 +87,8 @@ def _classify_device(model: str) -> DeviceType:
         return DeviceType.MS
     if model_upper.startswith("MR") or model_upper.startswith("CW"):
         return DeviceType.MR
+    if model_upper.startswith("MV"):
+        return DeviceType.MV
     return DeviceType.OTHER
 
 
@@ -264,6 +266,11 @@ class MerakiDiscoveryClient:
                     msg = f"Error fetching AP ports for {serial} ({model}): {exc}"
                     logger.error(msg)
                     errors.append(msg)
+
+            # MV cameras — single uplink only, no port API available
+            # They appear as neighbours on switch ports (already captured via LLDP)
+            elif device_type == DeviceType.MV:
+                logger.debug("Camera %s (%s): no port discovery needed", serial, model)
 
             all_devices.append(device_info)
             logger.info(
