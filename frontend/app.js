@@ -457,36 +457,66 @@ function renderLegend(topo) {
         topo.devices.some(d => d.room_id === r.id)
     );
 
+    // Pre-compute counts
+    const roomCounts = {};
+    for (const d of topo.devices) {
+        if (d.room_id) roomCounts[d.room_id] = (roomCounts[d.room_id] || 0) + 1;
+    }
+    const unassignedCount = topo.devices.filter(d => !d.room_id).length;
+
+    const typeCounts = {};
+    for (const d of topo.devices) {
+        typeCounts[d.device_type] = (typeCounts[d.device_type] || 0) + 1;
+    }
+
     let html = '';
 
     if (assignedRooms.length) {
         html += '<div class="legend-section"><strong>Rooms</strong><div class="legend-hint">Click to highlight</div>';
         for (const r of assignedRooms) {
-            const c = roomColorMap[r.id] || '#bdc3c7';
+            const c     = roomColorMap[r.id] || '#bdc3c7';
+            const count = roomCounts[r.id] || 0;
+            const badge = `<span class="legend-count">${count}</span>`;
             html += `<div class="legend-item legend-room-item" data-room-id="${r.id}" onclick="handleRoomHighlight(${r.id})" title="Click to highlight ${escHtml(r.name)}">
                 <span class="legend-swatch" style="border:3px solid ${c};background:transparent;"></span>
-                ${escHtml(r.name)}
+                ${escHtml(r.name)} ${badge}
             </div>`;
         }
-        // Unassigned devices — clicking shows unassigned nodes
-        if (topo.devices.some(d => !d.room_id)) {
+        if (unassignedCount > 0) {
             html += `<div class="legend-item legend-room-item" data-room-id="unassigned" onclick="handleRoomHighlight('unassigned')" title="Click to highlight unassigned devices">
                 <span class="legend-swatch" style="border:2px solid #fff;background:#ccc;"></span>
-                Unassigned
+                Unassigned <span class="legend-count">${unassignedCount}</span>
             </div>`;
         }
         html += '</div>';
     }
 
-    html += `<div class="legend-section"><strong>Device type</strong><div class="legend-hint">Click to highlight</div>
-        <div class="legend-item legend-type-item" data-device-type="ms" onclick="handleDeviceTypeHighlight('ms')"><span class="legend-icon" style="background:${DEVICE_COLORS.ms};"><img src="${DEVICE_ICONS.ms}"></span> Switch (MS)</div>
-        <div class="legend-item legend-type-item" data-device-type="mx" onclick="handleDeviceTypeHighlight('mx')"><span class="legend-icon" style="background:${DEVICE_COLORS.mx};"><img src="${DEVICE_ICONS.mx}"></span> Firewall (MX)</div>
-        <div class="legend-item legend-type-item" data-device-type="mr" onclick="handleDeviceTypeHighlight('mr')"><span class="legend-icon" style="background:${DEVICE_COLORS.mr};"><img src="${DEVICE_ICONS.mr}"></span> Wireless AP (MR/CW)</div>
-        <div class="legend-item legend-type-item" data-device-type="mv" onclick="handleDeviceTypeHighlight('mv')"><span class="legend-icon" style="background:${DEVICE_COLORS.mv};"><img src="${DEVICE_ICONS.mv}"></span> Camera (MV)</div>
-        <div class="legend-item legend-type-item" data-device-type="router" onclick="handleDeviceTypeHighlight('router')"><span class="legend-icon" style="background:${DEVICE_COLORS.router};"><img src="${DEVICE_ICONS.router}"></span> Router</div>
-        <div class="legend-item legend-type-item" data-device-type="other" onclick="handleDeviceTypeHighlight('other')"><span class="legend-icon" style="background:#7f8c8d;border:2px dashed #566573;"><img src="${DEVICE_ICONS.other}"></span> Unmanaged</div>
-    </div>
-    <div class="legend-section"><strong>Links</strong><div class="legend-hint">Click to highlight</div>
+    // Device type labels and their display names
+    const typeLabels = {
+        ms:     'Switch (MS)',
+        mx:     'Firewall (MX)',
+        mr:     'Wireless AP (MR/CW)',
+        mv:     'Camera (MV)',
+        router: 'Router',
+        other:  'Unmanaged',
+    };
+
+    html += '<div class="legend-section"><strong>Device type</strong><div class="legend-hint">Click to highlight</div>';
+    for (const [type, label] of Object.entries(typeLabels)) {
+        const count = typeCounts[type] || 0;
+        if (count === 0) continue;  // omit types not present in this topology
+        const badge = `<span class="legend-count">${count}</span>`;
+        const iconStyle = type === 'other'
+            ? `background:#7f8c8d;border:2px dashed #566573;`
+            : `background:${DEVICE_COLORS[type]};`;
+        html += `<div class="legend-item legend-type-item" data-device-type="${type}" onclick="handleDeviceTypeHighlight('${type}')">
+            <span class="legend-icon" style="${iconStyle}"><img src="${DEVICE_ICONS[type]}"></span>
+            ${label} ${badge}
+        </div>`;
+    }
+    html += '</div>';
+
+    html += `<div class="legend-section"><strong>Links</strong><div class="legend-hint">Click to highlight</div>
         <div class="legend-item legend-type-item" data-link-type="lldp" onclick="handleLinkTypeHighlight('lldp')"><span class="legend-line" style="background:#5d8aa8;"></span> LLDP</div>
         <div class="legend-item legend-type-item" data-link-type="cdp" onclick="handleLinkTypeHighlight('cdp')"><span class="legend-line" style="background:#1abc9c;"></span> CDP</div>
         <div class="legend-item legend-type-item" data-link-type="manual" onclick="handleLinkTypeHighlight('manual')"><span class="legend-line" style="background:#e67e22;border-top:2px dashed #e67e22;height:0;"></span> Manual</div>

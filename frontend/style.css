@@ -181,6 +181,17 @@ body {
     margin-bottom: 3px;
 }
 
+.legend-count {
+    margin-left: auto;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #7f8c8d;
+    background: rgba(0,0,0,0.06);
+    border-radius: 8px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+}
+
 .legend-room-item,
 .legend-type-item {
     cursor: pointer;
