@@ -59,6 +59,41 @@ body {
     min-width: 160px;
 }
 
+/* ── Network info header ─────────────────────────────── */
+#net-header {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 5px 18px;
+    background: #1a252f;
+    color: #85929e;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+    border-bottom: 1px solid #2c3e50;
+    flex-wrap: wrap;
+}
+
+#net-header span {
+    padding: 0 14px 0 0;
+    white-space: nowrap;
+}
+
+#net-header span:not(:last-child)::after {
+    content: '·';
+    margin-left: 14px;
+    color: #4a6278;
+}
+
+#net-org {
+    font-weight: 600;
+    color: #aab7c4;
+}
+
+#net-devices {
+    color: #aab7c4;
+    font-weight: 500;
+}
+
 /* ── Main layout ─────────────────────────────────────── */
 #main {
     display: flex;

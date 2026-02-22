@@ -198,3 +198,24 @@ class DeviceRoom(Base):
     def __repr__(self) -> str:
         return f"<DeviceRoom device_id={self.device_id} room_id={self.room_id}>"
 
+
+class ScanMeta(Base):
+    """
+    Singleton-style table storing metadata about the last successful scan.
+
+    Only one row is ever kept (id=1). Stores the Meraki organisation name,
+    a comma-separated list of network names seen, and the UTC timestamp of
+    the last scan.
+    """
+
+    __tablename__ = "scan_meta"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    org_name: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    org_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    network_names: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # comma-separated
+    last_scan_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # ISO 8601
+
+    def __repr__(self) -> str:
+        return f"<ScanMeta org={self.org_name!r} last_scan={self.last_scan_at!r}>"
+

@@ -156,12 +156,23 @@ class LinkRead(BaseModel):
 # Topology schema (composite for the frontend)
 # ---------------------------------------------------------------------------
 
+class NetworkSummary(BaseModel):
+    """High-level summary of the Meraki org shown in the UI header."""
+
+    org_name: Optional[str] = None
+    org_id: Optional[str] = None
+    network_names: list[str] = Field(default_factory=list)
+    last_scan_at: Optional[str] = None
+    total_devices: int = 0
+
+
 class TopologyResponse(BaseModel):
     """Full topology payload consumed by the Cytoscape.js frontend."""
 
     rooms: list[RoomRead]
     devices: list[DeviceRead]
     links: list[LinkRead]
+    summary: NetworkSummary = Field(default_factory=NetworkSummary)
 
 
 # ---------------------------------------------------------------------------

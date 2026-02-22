@@ -1044,13 +1044,41 @@ function escHtml(str) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function renderNetHeader(topo) {
+    /** Populate the network info header bar from topology summary. */
+    const s = topo.summary || {};
+
+    const orgEl      = document.getElementById('net-org');
+    const netsEl     = document.getElementById('net-networks');
+    const devicesEl  = document.getElementById('net-devices');
+    const scanEl     = document.getElementById('net-scan-time');
+
+    if (!orgEl) return;
+
+    orgEl.textContent = s.org_name ? `Org: ${s.org_name}` : '';
+
+    if (s.network_names && s.network_names.length) {
+        netsEl.textContent = `Networks: ${s.network_names.join(', ')}`;
+    } else {
+        netsEl.textContent = '';
+    }
+
+    devicesEl.textContent = s.total_devices ? `${s.total_devices} devices` : '';
+
+    if (s.last_scan_at) {
+        const d = new Date(s.last_scan_at);
+        scanEl.textContent = `Last scan: ${d.toLocaleString()}`;
+    } else {
+        scanEl.textContent = 'Not yet scanned';
+    }
+}
+
 async function reloadGraph() {
     // Capture current positions from the live graph before destroying it.
-    // This ensures nodes that were placed (dragged or staggered) don't lose
-    // their position when the graph is rebuilt after a room change etc.
     if (cy) savePositions();
     await fetchTopology();
     renderGraph(topology);
+    renderNetHeader(topology);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1074,6 +1102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await fetchTopology();
         renderGraph(topology);
+        renderNetHeader(topology);
     } catch (err) {
         showToast(`Failed to load topology: ${err.message}`, 'error');
         document.getElementById('empty-state').style.display = 'block';

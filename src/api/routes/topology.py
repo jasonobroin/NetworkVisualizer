@@ -7,9 +7,9 @@ import logging
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from src.api.schemas import DeviceRead, LinkRead, PortRead, RoomRead, TopologyResponse
+from src.api.schemas import DeviceRead, LinkRead, NetworkSummary, PortRead, RoomRead, TopologyResponse
 from src.db.database import get_db
-from src.db.models import Device, DeviceRoom, Link, Room
+from src.db.models import Device, DeviceRoom, Link, Room, ScanMeta
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -119,8 +119,19 @@ def get_topology(
         len(devices), len(all_devices) - len(devices), len(links), wired_only,
     )
 
+    # Build summary from ScanMeta row (populated by the last scan)
+    meta = db.get(ScanMeta, 1)
+    summary = NetworkSummary(
+        org_name=meta.org_name if meta else None,
+        org_id=meta.org_id if meta else None,
+        network_names=[n.strip() for n in (meta.network_names or "").split(",") if n.strip()] if meta else [],
+        last_scan_at=meta.last_scan_at if meta else None,
+        total_devices=len(devices),
+    )
+
     return TopologyResponse(
         rooms=[RoomRead.model_validate(r) for r in rooms],
         devices=device_reads,
         links=[LinkRead.model_validate(lnk) for lnk in links],
+        summary=summary,
     )

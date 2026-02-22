@@ -7,12 +7,13 @@ populating the database from Meraki discovery results.
 
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from src.db.database import engine, SessionLocal
-from src.db.models import Base, Device, Link, Port
+from src.db.models import Base, Device, Link, Port, ScanMeta
 from src.discovery.models import DiscoveryResult
 
 logger = logging.getLogger(__name__)
@@ -298,6 +299,24 @@ def seed_from_discovery(
                     )
                     session.add(link)
                     summary["links_added"] += 1
+
+        # ── Persist scan metadata (org name, network names, timestamp) ──────
+        if discovery_results:
+            first = discovery_results[0]
+            all_net_names = sorted({
+                dev.network_name
+                for result in discovery_results
+                for dev in result.devices
+                if dev.network_name
+            })
+            meta = session.get(ScanMeta, 1)
+            if meta is None:
+                meta = ScanMeta(id=1)
+                session.add(meta)
+            meta.org_name = first.organisation_name
+            meta.org_id   = first.organisation_id
+            meta.network_names = ", ".join(all_net_names)
+            meta.last_scan_at  = datetime.now(timezone.utc).isoformat()
 
         session.commit()
 
