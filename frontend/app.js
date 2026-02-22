@@ -373,6 +373,7 @@ function renderLegend(topo) {
 function showPlaceholder() {
     document.getElementById('detail-content').innerHTML =
         '<p id="detail-placeholder">Click a device or link to see details.</p>';
+    hidePortPanel();
 }
 
 function showDeviceDetail(deviceId) {
@@ -399,10 +400,6 @@ function showDeviceDetail(deviceId) {
         `<div class="info-row"><span class="label">${label}</span><span class="value">${escHtml(String(value))}</span></div>`
     ).join('');
 
-    const portTableHtml = device.ports?.length
-        ? buildPortTable(device.ports)
-        : '<p style="font-size:0.8rem;color:#95a5a6">No port data available.</p>';
-
     panel.innerHTML = `
         <div class="detail-section">
             <h3>Device Info</h3>
@@ -425,13 +422,15 @@ function showDeviceDetail(deviceId) {
             </div>
         </div>
 
-        <div class="detail-section">
-            <h3>Ports</h3>
-            ${portTableHtml}
-        </div>
-
         ${buildAnnotationForm(device)}
     `;
+
+    // Populate the bottom port panel (hidden if no ports)
+    if (device.ports && device.ports.length > 0) {
+        showPortPanel(device.ports, device.name);
+    } else {
+        hidePortPanel();
+    }
 }
 
 function buildPortTable(ports) {
@@ -472,6 +471,18 @@ function buildPortTable(ports) {
     </table></div>`;
 }
 
+function showPortPanel(ports, deviceName) {
+    /** Show the bottom port strip with the port table for the given device. */
+    document.getElementById('port-panel-title').textContent = `Ports — ${deviceName}`;
+    document.getElementById('port-panel-content').innerHTML = buildPortTable(ports);
+    document.getElementById('port-panel').classList.add('visible');
+}
+
+function hidePortPanel() {
+    /** Hide the bottom port strip. */
+    document.getElementById('port-panel').classList.remove('visible');
+}
+
 function buildAnnotationForm(device) {
     const title = device.is_managed ? 'Override / Notes' : '⚠️ Unmanaged Device — Annotate';
     return `
@@ -509,6 +520,7 @@ function buildRoomOptions(selectedRoomId) {
 }
 
 function showLinkDetail(linkId) {
+    hidePortPanel();
     const link = topology.links.find(l => l.id === linkId);
     if (!link) return;
     const srcDevice = topology.devices.find(d => d.id === link.src_device_id);
@@ -672,6 +684,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (topology) renderGraph(topology);
         showToast('Layout reset', 'success');
     });
+    document.getElementById('port-panel-close').addEventListener('click', hidePortPanel);
 
     showPlaceholder();
 

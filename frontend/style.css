@@ -64,6 +64,7 @@ body {
     display: flex;
     flex: 1;
     overflow: hidden;
+    min-height: 0; /* allow flex child to shrink below content size */
 }
 
 /* ── Graph pane ──────────────────────────────────────── */
@@ -71,12 +72,63 @@ body {
     flex: 1;
     position: relative;
     overflow: hidden;
+    min-height: 0;
 }
 
 #cy {
     width: 100%;
     height: 100%;
     background: #eaf0f6;
+}
+
+/* ── Port panel — full-width bottom strip ────────────── */
+#port-panel {
+    display: none;          /* hidden until a device with ports is selected */
+    flex-direction: column;
+    flex-shrink: 0;
+    background: #fff;
+    border-top: 2px solid #2980b9;
+    max-height: 260px;
+    overflow: hidden;
+}
+
+#port-panel.visible {
+    display: flex;
+}
+
+#port-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 14px;
+    background: #ecf0f1;
+    border-bottom: 1px solid #dce1e7;
+    flex-shrink: 0;
+}
+
+#port-panel-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+#port-panel-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    padding: 2px 6px;
+    border-radius: 3px;
+    line-height: 1;
+}
+#port-panel-close:hover { background: #dce1e7; color: #2c3e50; }
+
+#port-panel-content {
+    overflow-x: auto;
+    overflow-y: auto;
+    flex: 1;
+    padding: 6px 14px 10px;
 }
 
 
