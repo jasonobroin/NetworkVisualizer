@@ -79,6 +79,19 @@ body {
     background: #eaf0f6;
 }
 
+/* Room hull SVG overlay — pointer-events:none so clicks pass through to cy */
+#room-hulls {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 1;
+}
+/* cy canvas sits above the hull layer */
+#cy canvas {
+    z-index: 2 !important;
+}
+
 #empty-state {
     position: absolute;
     top: 50%;

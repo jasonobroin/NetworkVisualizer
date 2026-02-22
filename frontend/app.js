@@ -18,6 +18,21 @@
 let cy = null;          // Cytoscape instance
 let topology = null;    // Last fetched topology { rooms, devices, links }
 let rooms = [];         // Flat list of room objects for dropdowns
+let savedPositions = {}; // device-{id} → {x, y} — persisted across reloads
+
+const POSITIONS_KEY = 'nv_positions';
+
+function loadPositions() {
+    try { savedPositions = JSON.parse(localStorage.getItem(POSITIONS_KEY) || '{}'); }
+    catch (_) { savedPositions = {}; }
+}
+
+function savePositions() {
+    if (!cy) return;
+    const pos = {};
+    cy.nodes('[type="device"]').forEach(n => { pos[n.id()] = n.position(); });
+    localStorage.setItem(POSITIONS_KEY, JSON.stringify(pos));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. API helpers
@@ -108,54 +123,45 @@ const DEVICE_COLORS = {
 
 function buildCytoscapeElements(topo) {
     /**
-     * Convert topology API response into Cytoscape elements array.
-     * Rooms → compound parent nodes; devices → children; links → edges.
+     * Convert topology API response into a flat Cytoscape elements array.
+     * No compound/parent nodes — rooms are shown as a label line on the device.
+     * Saved positions from localStorage are applied where available.
      */
     const elements = [];
 
-    // Always add a virtual "Unassigned" room for devices with no room
-    elements.push({
-        data: { id: 'room-unassigned', label: 'Unassigned', type: 'room' },
-    });
+    // Room id → name lookup
+    const roomNames = {};
+    for (const r of topo.rooms) roomNames[r.id] = r.name;
 
-    // Room nodes
-    for (const room of topo.rooms) {
-        elements.push({
-            data: { id: `room-${room.id}`, label: room.name, type: 'room', roomId: room.id },
-        });
-    }
-
-    // Device id → room compound id lookup
-    const deviceRoomMap = {};
-    for (const d of topo.devices) {
-        deviceRoomMap[d.id] = d.room_id ? `room-${d.room_id}` : 'room-unassigned';
-    }
-
-    // Device nodes
+    // Device nodes — flat, no parent
     for (const device of topo.devices) {
         const color = DEVICE_COLORS[device.device_type] || DEVICE_COLORS.other;
-        const label = `${device.name}\n${device.model || ''}`.trim();
-        elements.push({
+        const roomLine = device.room_name ? `\n[${device.room_name}]` : '';
+        const label = `${device.name}\n${device.model || ''}${roomLine}`.trim();
+        const nodeId = `device-${device.id}`;
+        const pos = savedPositions[nodeId];
+        const el = {
             data: {
-                id: `device-${device.id}`,
+                id: nodeId,
                 label,
                 type: 'device',
                 deviceId: device.id,
                 deviceType: device.device_type,
-                // Store as string so Cytoscape selectors work: [isManaged="false"]
                 isManaged: String(device.is_managed),
                 color,
-                parent: deviceRoomMap[device.id],
+                roomId: device.room_id || null,
+                roomName: device.room_name || '',
             },
-        });
+        };
+        if (pos) el.position = { x: pos.x, y: pos.y };
+        elements.push(el);
     }
 
     // Build port DB id → port_id string lookup for edge labels
-    // p.id is the DB integer primary key; link.src_port_id references this
     const portIdMap = {};
     for (const device of topo.devices) {
         for (const p of (device.ports || [])) {
-            portIdMap[p.id] = p.port_id;   // e.g. portIdMap[23] = "7"
+            portIdMap[p.id] = p.port_id;
         }
     }
 
@@ -187,35 +193,6 @@ function buildCytoscapeElements(topo) {
 function buildCytoscapeStyle() {
     /** Return the Cytoscape stylesheet array. */
     return [
-        // Room compound nodes
-        {
-            selector: 'node[type="room"]',
-            style: {
-                'background-color': '#ecf0f1',
-                'background-opacity': 0.5,
-                'border-color': '#bdc3c7',
-                'border-width': 1.5,
-                'border-style': 'solid',
-                'label': 'data(label)',
-                'text-valign': 'top',
-                'text-halign': 'center',
-                'font-size': '13px',
-                'font-weight': 700,
-                'color': '#444',
-                'padding': '24px',
-                'shape': 'roundrectangle',
-            },
-        },
-        // Unassigned room — dashed border
-        {
-            selector: 'node#room-unassigned',
-            style: {
-                'border-style': 'dashed',
-                'border-color': '#95a5a6',
-                'background-color': '#f8f9fa',
-                'background-opacity': 0.3,
-            },
-        },
         // All device nodes — base style
         {
             selector: 'node[type="device"]',
@@ -232,21 +209,21 @@ function buildCytoscapeStyle() {
                 'border-width': 2,
                 'border-color': '#fff',
                 'text-wrap': 'wrap',
-                'text-max-width': '90px',
+                'text-max-width': '100px',
                 'shape': 'roundrectangle',
             },
         },
-        // MR/CW APs — triangle shape
+        // MR/CW APs — triangle
         {
             selector: 'node[type="device"][deviceType="mr"]',
             style: { 'shape': 'triangle', 'width': 44, 'height': 44 },
         },
-        // MX routers — diamond shape
+        // MX routers — diamond
         {
             selector: 'node[type="device"][deviceType="mx"]',
             style: { 'shape': 'diamond', 'width': 52, 'height': 52 },
         },
-        // Unmanaged device — dashed border (isManaged stored as string)
+        // Unmanaged — dashed border, hexagon
         {
             selector: 'node[type="device"][isManaged="false"]',
             style: {
@@ -263,9 +240,10 @@ function buildCytoscapeStyle() {
             style: {
                 'border-color': '#f39c12',
                 'border-width': 3.5,
+                'border-style': 'solid',
             },
         },
-        // Edges — base style
+        // Edges — base
         {
             selector: 'edge',
             style: {
@@ -284,29 +262,14 @@ function buildCytoscapeStyle() {
                 'text-background-padding': '1px',
             },
         },
-        // LLDP links — blue-grey
-        {
-            selector: 'edge[linkType="lldp"]',
-            style: { 'line-color': '#5d8aa8', 'width': 2.5 },
-        },
-        // CDP links — teal
-        {
-            selector: 'edge[linkType="cdp"]',
-            style: { 'line-color': '#1abc9c', 'width': 2.5 },
-        },
-        // Manual links — orange
-        {
-            selector: 'edge[linkType="manual"]',
-            style: { 'line-color': '#e67e22', 'line-style': 'dashed', 'width': 2 },
-        },
-        {
-            selector: 'edge:selected',
-            style: {
-                'line-color': '#f39c12',
-                'width': 3.5,
-                'opacity': 1,
-            },
-        },
+        // LLDP — blue-grey
+        { selector: 'edge[linkType="lldp"]', style: { 'line-color': '#5d8aa8', 'width': 2.5 } },
+        // CDP — teal
+        { selector: 'edge[linkType="cdp"]',  style: { 'line-color': '#1abc9c', 'width': 2.5 } },
+        // Manual — dashed orange
+        { selector: 'edge[linkType="manual"]', style: { 'line-color': '#e67e22', 'line-style': 'dashed', 'width': 2 } },
+        // Selected edge
+        { selector: 'edge:selected', style: { 'line-color': '#f39c12', 'width': 3.5, 'opacity': 1 } },
     ];
 }
 
@@ -317,40 +280,146 @@ function renderGraph(topo) {
 
     document.getElementById('empty-state').style.display = hasDevices ? 'none' : 'block';
 
-    if (cy) {
-        cy.destroy();
-        cy = null;
+    if (cy) { cy.destroy(); cy = null; }
+
+    // Register cose-bilkent once
+    if (typeof cytoscapeCoseBilkent !== 'undefined') {
+        try { cytoscape.use(cytoscapeCoseBilkent); } catch (_) {}
     }
 
-    // Register cose-bilkent if available, fall back to built-in cose
-    let layoutName = 'cose';
-    if (typeof cytoscapeCoseBilkent !== 'undefined') {
-        try {
-            cytoscape.use(cytoscapeCoseBilkent);
-            layoutName = 'cose-bilkent';
-        } catch (_) {
-            // Already registered — still use it
-            layoutName = 'cose-bilkent';
-        }
-    }
+    // Use preset (saved positions) if we have them for at least half the nodes,
+    // otherwise fall back to auto-layout
+    const deviceElements = elements.filter(el => el.data && el.data.type === 'device');
+    const savedCount = deviceElements.filter(el => el.position).length;
+    const usePreset = savedCount >= Math.ceil(deviceElements.length / 2);
+
+    const layout = usePreset
+        ? { name: 'preset', padding: 40, fit: savedCount < deviceElements.length }
+        : {
+            name: typeof cytoscapeCoseBilkent !== 'undefined' ? 'cose-bilkent' : 'cose',
+            animate: false,
+            nodeDimensionsIncludeLabels: true,
+            idealEdgeLength: 120,
+            nodeRepulsion: 12000,
+            padding: 50,
+            randomize: false,
+          };
 
     cy = cytoscape({
         container: document.getElementById('cy'),
         elements,
         style: buildCytoscapeStyle(),
-        layout: {
-            name: layoutName,
-            animate: false,
-            nodeDimensionsIncludeLabels: true,
-            idealEdgeLength: 100,
-            nodeRepulsion: 8000,
-            padding: 30,
-        },
+        layout,
         wheelSensitivity: 0.3,
+        minZoom: 0.2,
+        maxZoom: 3,
     });
 
-    // Attach event handlers after render
+    // Save positions whenever a node is dragged
+    cy.on('dragfree', 'node', () => savePositions());
+
+    // Draw room hull overlays after layout is done
+    cy.one('layoutstop', () => {
+        drawRoomHulls(topo);
+        savePositions();
+    });
+
     attachGraphEvents();
+}
+
+// ─── Room hull overlay ────────────────────────────────────────────────────────
+
+/**
+ * Draw lightweight room label + dashed bounding-box overlays using an SVG
+ * layer placed behind the Cytoscape canvas. This avoids compound node sizing
+ * issues entirely — rooms are purely cosmetic annotations.
+ */
+function drawRoomHulls(topo) {
+    // Remove any existing hull SVG
+    const existing = document.getElementById('room-hulls');
+    if (existing) existing.remove();
+
+    if (!cy || topo.devices.every(d => !d.room_id)) return;
+
+    const container = document.getElementById('cy-wrapper');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = 'room-hulls';
+    svg.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:visible;';
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    container.prepend(svg);   // behind the canvas
+
+    // Group devices by room
+    const roomDevices = {};
+    for (const dev of topo.devices) {
+        if (!dev.room_id) continue;
+        if (!roomDevices[dev.room_id]) roomDevices[dev.room_id] = { name: dev.room_name, nodes: [] };
+        const node = cy.$(`#device-${dev.id}`);
+        if (node.length) roomDevices[dev.room_id].nodes.push(node);
+    }
+
+    const pan  = cy.pan();
+    const zoom = cy.zoom();
+
+    /** Convert a Cytoscape model-space point to screen pixel coords. */
+    function toScreen(pt) {
+        return { x: pt.x * zoom + pan.x, y: pt.y * zoom + pan.y };
+    }
+
+    const PAD = 20;
+    const ROOM_COLORS = [
+        '#3498db','#e74c3c','#2ecc71','#9b59b6',
+        '#f39c12','#1abc9c','#e67e22','#16a085',
+    ];
+    let colorIdx = 0;
+
+    for (const [roomId, info] of Object.entries(roomDevices)) {
+        if (!info.nodes.length) continue;
+
+        // Bounding box of all nodes in this room
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const node of info.nodes) {
+            const bb = node.renderedBoundingBox({ includeLabels: true });
+            minX = Math.min(minX, bb.x1);
+            minY = Math.min(minY, bb.y1);
+            maxX = Math.max(maxX, bb.x2);
+            maxY = Math.max(maxY, bb.y2);
+        }
+
+        const x = minX - PAD, y = minY - PAD;
+        const w = maxX - minX + PAD * 2, h = maxY - minY + PAD * 2;
+        const color = ROOM_COLORS[colorIdx++ % ROOM_COLORS.length];
+
+        // Dashed rectangle
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', x); rect.setAttribute('y', y);
+        rect.setAttribute('width', w); rect.setAttribute('height', h);
+        rect.setAttribute('rx', 10); rect.setAttribute('ry', 10);
+        rect.setAttribute('fill', color);
+        rect.setAttribute('fill-opacity', '0.05');
+        rect.setAttribute('stroke', color);
+        rect.setAttribute('stroke-width', '1.5');
+        rect.setAttribute('stroke-dasharray', '6 3');
+        svg.appendChild(rect);
+
+        // Room label
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x + 10);
+        text.setAttribute('y', y + 16);
+        text.setAttribute('font-size', '12');
+        text.setAttribute('font-family', 'system-ui, sans-serif');
+        text.setAttribute('font-weight', '600');
+        text.setAttribute('fill', color);
+        text.setAttribute('fill-opacity', '0.9');
+        text.textContent = info.name;
+        svg.appendChild(text);
+    }
+}
+
+/** Redraw room hulls whenever the viewport changes (pan/zoom/drag). */
+function attachHullUpdater(topo) {
+    if (!cy) return;
+    cy.on('viewport dragfree', () => drawRoomHulls(topo));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -528,21 +597,17 @@ function showLinkDetail(linkId) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function attachGraphEvents() {
-    /** Wire up Cytoscape click events. */
+    /** Wire up Cytoscape tap events and room hull updater. */
     cy.on('tap', 'node[type="device"]', evt => {
-        const deviceId = evt.target.data('deviceId');
-        showDeviceDetail(deviceId);
+        showDeviceDetail(evt.target.data('deviceId'));
     });
-
     cy.on('tap', 'edge', evt => {
-        const linkId = evt.target.data('linkId');
-        showLinkDetail(linkId);
+        showLinkDetail(evt.target.data('linkId'));
     });
-
     cy.on('tap', evt => {
-        // Tap on background — clear panel
         if (evt.target === cy) showPlaceholder();
     });
+    attachHullUpdater(topology);
 }
 
 async function handleRoomChange(deviceId, roomIdStr) {
@@ -693,8 +758,15 @@ async function reloadGraph() {
 
 document.addEventListener('DOMContentLoaded', async () => {
     /** Application entry point — load topology and render graph. */
+    loadPositions();
     document.getElementById('btn-scan').addEventListener('click', handleScan);
     document.getElementById('btn-reset').addEventListener('click', handleReset);
+    document.getElementById('btn-layout').addEventListener('click', () => {
+        localStorage.removeItem(POSITIONS_KEY);
+        savedPositions = {};
+        if (topology) renderGraph(topology);
+        showToast('Layout reset — positions cleared', 'success');
+    });
 
     showPlaceholder();
 
