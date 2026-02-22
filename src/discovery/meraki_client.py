@@ -209,6 +209,15 @@ class MerakiDiscoveryClient:
                     logger.error(msg)
                     errors.append(msg)
 
+            # Fetch wired port / uplink info for MR/CW access points
+            elif device_type == DeviceType.MR and serial:
+                try:
+                    device_info.ports = self._discover_ap_ports(serial, model)
+                except Exception as exc:
+                    msg = f"Error fetching AP ports for {serial} ({model}): {exc}"
+                    logger.error(msg)
+                    errors.append(msg)
+
             all_devices.append(device_info)
             logger.info(
                 "  Device: %s (%s) — %d port(s)",
@@ -306,6 +315,85 @@ class MerakiDiscoveryClient:
             )
             ports.append(port)
 
+        return ports
+
+    def _discover_ap_ports(self, serial: str, model: str) -> list[PortInfo]:
+        """
+        Fetch wired port information for a Meraki MR/CW access point.
+
+        APs don't have a switch-port config endpoint.  Instead we use
+        getDeviceLldpCdp which returns one entry per wired port that has
+        a detected neighbour (e.g. wired0 = uplink, wired1 = downlink on
+        multi-port APs like the MR36H).
+
+        Port naming convention used by Meraki APs:
+          wired0 — primary uplink (PoE input on most APs)
+          wired1 — secondary / downlink (MR36H, some outdoor APs)
+
+        We synthesise a PortInfo for every port reported by LLDP/CDP plus a
+        bare wired0 uplink entry if none is returned (AP online but no
+        neighbour detected).
+        """
+        ports: list[PortInfo] = []
+
+        try:
+            neighbour_data = self._dashboard.devices.getDeviceLldpCdp(serial)
+        except meraki.APIError as exc:
+            logger.warning("Could not fetch LLDP/CDP for AP %s: %s", serial, exc)
+            # Return a single synthetic uplink port with unknown state
+            ports.append(PortInfo(
+                port_id="wired0",
+                name="Uplink",
+                enabled=True,
+                link_state="unknown",
+                poe_capable=False,
+                poe_enabled=False,
+                poe_active=False,
+            ))
+            return ports
+
+        lldp_cdp = self._parse_lldp_cdp(neighbour_data)
+
+        # Well-known AP port names and their human-readable labels
+        _AP_PORT_NAMES = {
+            "wired0": "Uplink",
+            "wired1": "Downlink 1",
+            "wired2": "Downlink 2",
+            "wired3": "Downlink 3",
+        }
+
+        # Build a port for every entry returned by LLDP/CDP
+        seen_ports: set[str] = set()
+        for port_id, neighbour in lldp_cdp.items():
+            seen_ports.add(port_id)
+            ports.append(PortInfo(
+                port_id=port_id,
+                name=_AP_PORT_NAMES.get(port_id, port_id),
+                enabled=True,
+                link_state="up",   # neighbour detected → link is up
+                speed=None,        # not available via this endpoint
+                vlan=None,
+                poe_capable=False, # APs consume PoE, they don't provide it
+                poe_enabled=False,
+                poe_active=False,
+                neighbour=neighbour,
+            ))
+
+        # Always ensure wired0 (uplink) appears even if no neighbour was detected
+        if "wired0" not in seen_ports:
+            ports.insert(0, PortInfo(
+                port_id="wired0",
+                name="Uplink",
+                enabled=True,
+                link_state="unknown",
+                poe_capable=False,
+                poe_enabled=False,
+                poe_active=False,
+            ))
+
+        # Sort: wired0 first, then wired1, wired2 …
+        ports.sort(key=lambda p: p.port_id)
+        logger.debug("AP %s (%s): %d wired port(s)", serial, model, len(ports))
         return ports
 
     def _parse_lldp_cdp(self, data: dict) -> dict[str, LldpCdpNeighbour]:

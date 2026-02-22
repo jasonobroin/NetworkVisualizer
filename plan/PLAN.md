@@ -83,6 +83,8 @@ via a dropdown. A manual "Rescan" button triggers fresh discovery.
 - [x] Bidirectional LLDP deduplication
 - [x] Removed compound/parent room nodes (caused large overlapping boxes)
 - [x] Room membership shown via node border ring colour + legend
+- [x] Port table moved to bottom panel; click port row highlights graph edge
+- [x] MR/CW AP wired ports discovered via `getDeviceLldpCdp` (wired0 uplink, wired1+ downlinks)
 
 ---
 
