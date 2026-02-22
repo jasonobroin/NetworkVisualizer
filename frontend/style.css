@@ -79,18 +79,6 @@ body {
     background: #eaf0f6;
 }
 
-/* Room hull SVG overlay — pointer-events:none so clicks pass through to cy */
-#room-hulls {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    overflow: visible;
-    z-index: 1;
-}
-/* cy canvas sits above the hull layer */
-#cy canvas {
-    z-index: 2 !important;
-}
 
 #empty-state {
     position: absolute;
@@ -104,6 +92,52 @@ body {
 
 #empty-state h2 { font-size: 1.2rem; margin-bottom: 6px; }
 #empty-state p  { font-size: 0.85rem; }
+
+/* ── Legend ──────────────────────────────────────────── */
+#legend {
+    padding: 8px 14px 4px;
+    border-bottom: 1px solid #dce1e7;
+    flex-shrink: 0;
+}
+
+.legend-section {
+    margin-bottom: 8px;
+}
+
+.legend-section strong {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #7f8c8d;
+    margin-bottom: 4px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.8rem;
+    color: #2c3e50;
+    padding: 1px 0;
+}
+
+.legend-swatch {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.legend-line {
+    display: inline-block;
+    width: 24px;
+    height: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
 
 /* ── Detail panel ────────────────────────────────────── */
 #detail-panel {
