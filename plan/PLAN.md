@@ -76,7 +76,7 @@ via a dropdown. A manual "Rescan" button triggers fresh discovery.
 
 ## Post-Launch Fixes
 
-- [x] Meraki API `productTypes` filter — sensors/cameras excluded at API level
+- [x] Meraki API `productTypes` filter — sensors excluded at API level
 - [x] LLDP link resolution via MAC address matching (not serial/name)
 - [x] MAC ±offset resolution for Meraki AP radio vs management MAC
 - [x] CDP hostname matching for non-Meraki devices (e.g. Catalyst 9800-L)
@@ -88,12 +88,19 @@ via a dropdown. A manual "Rescan" button triggers fresh discovery.
 - [x] MR/CW AP wired ports via `getOrganizationWirelessDevicesEthernetStatuses` — live speed, PoE standard, all ports without hardcoding; LLDP/CDP neighbour overlaid where detected
 - [x] Node positions persisted in localStorage; ⊞ Reset Layout button clears them
 - [x] `--reload` flag documented for local dev; `DATABASE_URL` sqlite:/// prefix fixed in README
+- [x] SVG network icons per device type (switch, firewall, AP, camera, router, server) replacing geometric shapes
+- [x] MV camera support — discovered via `productTypes=camera`, classified as `DeviceType.MV`, purple icon, included in topology (previously filtered out by `_is_infrastructure`)
+- [x] New nodes no longer pile at `{0,0}` when preset layout used — staggered below existing nodes
+- [x] Node positions correctly preserved across `reloadGraph` — saved before graph destroy, in-memory state kept current
+- [x] Click Room / Device type / Link type in legend to highlight matching nodes/edges; all others dim
+- [x] Viewport saved before highlight and restored (animated) when highlight is cleared
+- [x] Clicking the same legend item again, or the canvas background, clears the highlight
 
 ---
 
 ## Unsolved Issues
 
-- [ ] **SVG node icon vertical alignment** — icons render in the upper portion of nodes in Cytoscape.js. Root cause: `background-fit: contain` ignores `background-position-y`; `background-fit: none` with `background-offset` uses top-left anchor semantics, not centre. Attempts to compensate via SVG viewBox padding (10px all sides) and `background-clip: node` did not produce visible improvement. Workaround: acceptable for now. Possible fix: use a canvas-based icon renderer or switch to a Cytoscape extension that supports HTML node content.
+- [ ] **SVG node icon vertical alignment** — icons render slightly high within nodes in Cytoscape.js. Root cause: `background-fit: contain` ignores `background-position-y`; `background-fit: none` with `background-offset` uses top-left anchor semantics, not centre. Attempts to compensate via SVG viewBox padding and `background-clip: node` produced no visible improvement. Workaround: acceptable for now. Possible fix: canvas-based icon renderer or a Cytoscape extension that supports HTML node content.
 
 ---
 
