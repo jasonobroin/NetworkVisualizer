@@ -85,19 +85,27 @@ Re-run a scan to repopulate from Meraki.
 ```bash
 # Ensure uv is installed — https://docs.astral.sh/uv/
 uv sync
-uv run uvicorn src.api.main:app --reload --port 8000
 ```
+
+Start the server — note `DATABASE_URL` is required locally because `/data` only exists inside Docker:
+
+```bash
+DATABASE_URL="sqlite:///./local_network.db" uv run uvicorn src.api.main:app --port 8000 --reload
+```
+
+`--reload` causes the server to automatically restart whenever a Python source file changes,
+so you never need to manually restart after editing code.
 
 > **PyCharm users:** After running `uv sync`, configure the project interpreter to use
 > `.venv/bin/python3.12` inside the project directory. Go to
 > *Settings → Python Interpreter → Add → Existing Environment* and point it at
 > `.venv/bin/python3.12`. This resolves all "Unresolved reference" warnings.
 
-Set environment variables locally (or ensure `.env` is present):
+Or with a `.env` file — set:
 
-```bash
-export MERAKI_API_KEY=your_key_here
-export DATABASE_URL=./local_network.db
+```
+MERAKI_API_KEY=your_key_here
+DATABASE_URL=sqlite:///./local_network.db
 ```
 
 ---
