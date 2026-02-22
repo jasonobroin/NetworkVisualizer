@@ -175,6 +175,33 @@ body {
     padding: 1px 0;
 }
 
+.legend-hint {
+    font-size: 0.7rem;
+    color: #95a5a6;
+    margin-bottom: 3px;
+}
+
+.legend-room-item {
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: 0 -4px;
+    transition: background 0.15s;
+}
+
+.legend-room-item:hover {
+    background: rgba(0,0,0,0.06);
+}
+
+.legend-room-active {
+    background: rgba(52, 152, 219, 0.12);
+    font-weight: 600;
+}
+
+.legend-room-active .legend-swatch {
+    box-shadow: 0 0 0 2px rgba(52,152,219,0.5);
+}
+
 .legend-swatch {
     display: inline-block;
     width: 14px;

@@ -362,8 +362,17 @@ function buildCytoscapeStyle() {
                 'z-index':                 999,
             },
         },
-        { selector: 'edge.dimmed', style: { 'opacity': 0.15 } },
-        { selector: 'node.dimmed', style: { 'opacity': 0.25 } },
+        { selector: 'edge.dimmed', style: { 'opacity': 0.12 } },
+        { selector: 'node.dimmed', style: { 'opacity': 0.15 } },
+        // Room highlight — bright border, full opacity, slight glow via outline
+        {
+            selector: 'node.room-highlighted',
+            style: {
+                'opacity':       1,
+                'border-width':  6,
+                'border-style':  'solid',
+            },
+        },
     ];
 }
 
@@ -451,17 +460,17 @@ function renderLegend(topo) {
     let html = '';
 
     if (assignedRooms.length) {
-        html += '<div class="legend-section"><strong>Rooms</strong>';
+        html += '<div class="legend-section"><strong>Rooms</strong><div class="legend-hint">Click to highlight</div>';
         for (const r of assignedRooms) {
             const c = roomColorMap[r.id] || '#bdc3c7';
-            html += `<div class="legend-item">
+            html += `<div class="legend-item legend-room-item" data-room-id="${r.id}" onclick="handleRoomHighlight(${r.id})" title="Click to highlight ${escHtml(r.name)}">
                 <span class="legend-swatch" style="border:3px solid ${c};background:transparent;"></span>
                 ${escHtml(r.name)}
             </div>`;
         }
-        // Unassigned devices indicator
+        // Unassigned devices — clicking shows unassigned nodes
         if (topo.devices.some(d => !d.room_id)) {
-            html += `<div class="legend-item">
+            html += `<div class="legend-item legend-room-item" data-room-id="unassigned" onclick="handleRoomHighlight('unassigned')" title="Click to highlight unassigned devices">
                 <span class="legend-swatch" style="border:2px solid #fff;background:#ccc;"></span>
                 Unassigned
             </div>`;
@@ -619,6 +628,63 @@ function hidePortPanel() {
 }
 
 let _highlightedLinkId = null;  // track currently highlighted link
+let _activeRoomId      = null;  // track currently highlighted room
+
+function highlightRoom(roomId) {
+    /** Dim all nodes not in roomId, highlight those that are, fit view to them. */
+    if (!cy) return;
+    clearRoomHighlight(false);  // clear previous without resetting _activeRoomId yet
+
+    const matchFn = roomId === 'unassigned'
+        ? n => !n.data('roomId')
+        : n => String(n.data('roomId')) === String(roomId);
+
+    const inRoom  = cy.nodes('[type="device"]').filter(n => matchFn(n));
+    const outRoom = cy.nodes('[type="device"]').filter(n => !matchFn(n));
+
+    outRoom.addClass('dimmed');
+    inRoom.addClass('room-highlighted');
+
+    // Also dim edges that don't connect two in-room nodes
+    cy.edges().forEach(e => {
+        const srcIn = inRoom.has(e.source());
+        const dstIn = inRoom.has(e.target());
+        if (!srcIn && !dstIn) e.addClass('dimmed');
+    });
+
+    if (inRoom.length) {
+        cy.animate({ fit: { eles: inRoom, padding: 80 }, duration: 350, easing: 'ease-in-out-cubic' });
+    }
+
+    _activeRoomId = roomId;
+
+    // Mark the active legend item
+    document.querySelectorAll('.legend-room-item').forEach(el => {
+        el.classList.toggle('legend-room-active', String(el.dataset.roomId) === String(roomId));
+    });
+}
+
+function clearRoomHighlight(resetTracker = true) {
+    /** Remove room highlight classes and restore normal opacity. */
+    if (!cy) return;
+    cy.nodes().removeClass('dimmed room-highlighted');
+    cy.edges().removeClass('dimmed');
+    if (resetTracker) {
+        _activeRoomId = null;
+        document.querySelectorAll('.legend-room-item').forEach(el => el.classList.remove('legend-room-active'));
+    }
+}
+
+function handleRoomHighlight(roomId) {
+    /** Toggle: clicking the active room clears it; clicking another highlights it. */
+    if (_activeRoomId !== null && String(_activeRoomId) === String(roomId)) {
+        clearRoomHighlight();
+    } else {
+        // Clear any port/edge highlight first
+        clearHighlight();
+        highlightRoom(roomId);
+    }
+}
 
 function highlightLink(linkId) {
     /** Highlight the edge for linkId and dim all others. */
@@ -753,6 +819,7 @@ function attachGraphEvents() {
         if (evt.target === cy) {
             showPlaceholder();
             clearHighlight();
+            clearRoomHighlight();
         }
     });
 }
