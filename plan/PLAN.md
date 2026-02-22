@@ -82,9 +82,12 @@ via a dropdown. A manual "Rescan" button triggers fresh discovery.
 - [x] CDP hostname matching for non-Meraki devices (e.g. Catalyst 9800-L)
 - [x] Bidirectional LLDP deduplication
 - [x] Removed compound/parent room nodes (caused large overlapping boxes)
-- [x] Room membership shown via node border ring colour + legend
-- [x] Port table moved to bottom panel; click port row highlights graph edge
-- [x] MR/CW AP wired ports discovered via `getDeviceLldpCdp` (wired0 uplink, wired1+ downlinks)
+- [x] Room membership shown via node border ring colour + legend in side panel
+- [x] Port table moved to bottom panel; click port row highlights graph edge + dims others
+- [x] Port row with link shows ⇢ hint; clicking re-centres graph on that edge
+- [x] MR/CW AP wired ports via `getOrganizationWirelessDevicesEthernetStatuses` — live speed, PoE standard, all ports without hardcoding; LLDP/CDP neighbour overlaid where detected
+- [x] Node positions persisted in localStorage; ⊞ Reset Layout button clears them
+- [x] `--reload` flag documented for local dev; `DATABASE_URL` sqlite:/// prefix fixed in README
 
 ---
 
