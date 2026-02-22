@@ -276,6 +276,31 @@ body {
 
 .port-table tr:hover td { background: #fafafa; }
 
+/* Port rows that have a corresponding graph link */
+tr.port-linked {
+    cursor: pointer;
+}
+tr.port-linked:hover td {
+    background: #eaf4fb;
+}
+/* Active/selected port row — matches highlight colour */
+tr.port-row.active td {
+    background: #eafaf1;
+    border-bottom-color: #2ecc71;
+}
+tr.port-row.active td:first-child {
+    border-left: 3px solid #2ecc71;
+}
+
+/* Small arrow hint shown on linked rows */
+.port-link-hint {
+    font-size: 0.75rem;
+    color: #2980b9;
+    margin-left: 3px;
+    vertical-align: middle;
+    opacity: 0.7;
+}
+
 .badge {
     display: inline-block;
     padding: 1px 5px;

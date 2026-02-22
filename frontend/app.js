@@ -269,6 +269,33 @@ function buildCytoscapeStyle() {
         { selector: 'edge[linkType="cdp"]',    style: { 'line-color': '#1abc9c' } },
         { selector: 'edge[linkType="manual"]', style: { 'line-color': '#e67e22', 'line-style': 'dashed' } },
         { selector: 'edge:selected',           style: { 'line-color': '#f39c12', 'width': 3.5, 'opacity': 1 } },
+        // Port-click highlight — overrides all other edge styles
+        {
+            selector: 'edge.highlighted',
+            style: {
+                'line-color':            '#2ecc71',
+                'width':                 5,
+                'opacity':               1,
+                'line-style':            'solid',
+                'font-size':             '11px',
+                'font-weight':           'bold',
+                'color':                 '#27ae60',
+                'text-background-color': '#fff',
+                'text-background-opacity': 1,
+                'text-background-padding': '3px',
+                'z-index':               999,
+            },
+        },
+        // Dim all other edges when one is highlighted
+        {
+            selector: 'edge.dimmed',
+            style: { 'opacity': 0.15 },
+        },
+        // Dim nodes when a link is highlighted
+        {
+            selector: 'node.dimmed',
+            style: { 'opacity': 0.25 },
+        },
     ];
 }
 
@@ -434,7 +461,21 @@ function showDeviceDetail(deviceId) {
 }
 
 function buildPortTable(ports) {
+    // Build port DB id → link id lookup from current topology
+    const portLinkMap = {};
+    if (topology) {
+        for (const link of topology.links) {
+            if (link.src_port_id) portLinkMap[link.src_port_id] = link.id;
+            if (link.dst_port_id) portLinkMap[link.dst_port_id] = link.id;
+        }
+    }
+
     const rows = ports.map(p => {
+        const linkId = portLinkMap[p.id];
+        const rowAttrs = linkId
+            ? `data-link-id="${linkId}" data-port-id="${p.id}" class="port-row port-linked"`
+            : `data-port-id="${p.id}" class="port-row"`;
+
         const stateBadge = p.link_state === 'up'
             ? '<span class="badge badge-up">UP</span>'
             : p.link_state === 'down'
@@ -455,8 +496,11 @@ function buildPortTable(ports) {
             ? `<span title="${escHtml(p.neighbour.platform || '')} — port ${escHtml(p.neighbour.port_id || '')}">${escHtml(p.neighbour.device_id || '—')}</span>`
             : '—';
 
-        return `<tr>
-            <td><strong>${escHtml(p.port_id)}</strong>${p.name ? `<br><span style="color:#95a5a6;font-size:0.7rem">${escHtml(p.name)}</span>` : ''}</td>
+        // Show a small graph icon on rows that have a link to click
+        const linkHint = linkId ? ' <span class="port-link-hint" title="Click to highlight link in graph">⇢</span>' : '';
+
+        return `<tr ${rowAttrs}>
+            <td><strong>${escHtml(p.port_id)}</strong>${linkHint}${p.name ? `<br><span style="color:#95a5a6;font-size:0.7rem">${escHtml(p.name)}</span>` : ''}</td>
             <td>${stateBadge}</td>
             <td>${escHtml(p.speed || '—')}</td>
             <td>${p.vlan != null ? p.vlan : '—'}</td>
@@ -476,11 +520,82 @@ function showPortPanel(ports, deviceName) {
     document.getElementById('port-panel-title').textContent = `Ports — ${deviceName}`;
     document.getElementById('port-panel-content').innerHTML = buildPortTable(ports);
     document.getElementById('port-panel').classList.add('visible');
+    attachPortPanelEvents();
 }
 
 function hidePortPanel() {
-    /** Hide the bottom port strip. */
+    /** Hide the bottom port strip and clear any graph highlight. */
+    clearHighlight();
     document.getElementById('port-panel').classList.remove('visible');
+}
+
+let _highlightedLinkId = null;  // track currently highlighted link
+
+function highlightLink(linkId) {
+    /** Highlight the edge for linkId and dim all others. */
+    if (!cy) return;
+    clearHighlight();
+    const edgeId = `link-${linkId}`;
+    const edge = cy.$(`#${edgeId}`);
+    if (!edge.length) return;
+
+    // Dim everything, then highlight the target edge and its endpoint nodes
+    cy.edges().addClass('dimmed');
+    cy.nodes().addClass('dimmed');
+    edge.removeClass('dimmed').addClass('highlighted');
+    edge.connectedNodes().removeClass('dimmed');
+
+    // Pan & zoom to show the edge with context
+    cy.animate({
+        fit: { eles: edge.connectedNodes(), padding: 80 },
+        duration: 350,
+        easing: 'ease-in-out-cubic',
+    });
+
+    _highlightedLinkId = linkId;
+}
+
+function clearHighlight() {
+    /** Remove all highlight/dim classes from the graph. */
+    if (!cy) return;
+    cy.edges().removeClass('highlighted dimmed');
+    cy.nodes().removeClass('dimmed');
+    _highlightedLinkId = null;
+
+    // Clear selected row in port table
+    document.querySelectorAll('.port-row.active').forEach(r => r.classList.remove('active'));
+}
+
+function attachPortPanelEvents() {
+    /** Delegate click events on port rows in the port panel. */
+    const content = document.getElementById('port-panel-content');
+
+    // Remove old listener by replacing the node
+    const fresh = content.cloneNode(true);
+    content.parentNode.replaceChild(fresh, content);
+
+    fresh.addEventListener('click', evt => {
+        const row = evt.target.closest('tr.port-row');
+        if (!row) return;
+
+        const linkId = row.dataset.linkId ? parseInt(row.dataset.linkId, 10) : null;
+
+        // Toggle off if clicking the already-highlighted row
+        if (linkId && linkId === _highlightedLinkId) {
+            clearHighlight();
+            return;
+        }
+
+        // Clear previous selection
+        document.querySelectorAll('.port-row.active').forEach(r => r.classList.remove('active'));
+        row.classList.add('active');
+
+        if (linkId) {
+            highlightLink(linkId);
+        } else {
+            clearHighlight();
+        }
+    });
 }
 
 function buildAnnotationForm(device) {
@@ -545,7 +660,12 @@ function showLinkDetail(linkId) {
 function attachGraphEvents() {
     cy.on('tap', 'node[type="device"]', evt => showDeviceDetail(evt.target.data('deviceId')));
     cy.on('tap', 'edge',               evt => showLinkDetail(evt.target.data('linkId')));
-    cy.on('tap', evt => { if (evt.target === cy) showPlaceholder(); });
+    cy.on('tap', evt => {
+        if (evt.target === cy) {
+            showPlaceholder();
+            clearHighlight();
+        }
+    });
 }
 
 async function handleRoomChange(deviceId, roomIdStr) {
