@@ -183,6 +183,21 @@ body {
     flex-shrink: 0;
 }
 
+.legend-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.legend-icon img {
+    width: 14px;
+    height: 14px;
+}
+
 .legend-line {
     display: inline-block;
     width: 24px;

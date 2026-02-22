@@ -121,20 +121,81 @@ async function createRoom(name, notes = '') {
     });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. Graph rendering
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Network device icons (inline SVG data URIs) ──────────────────────────────
+//
+// Cisco-style monochrome icons. Each SVG is white on a transparent background
+// so it reads clearly over the coloured node fill.
+//
+// Encoding: btoa(svgString) — plain base64, no external dependency.
 
+function _svgUri(svg) {
+    /** Convert an SVG string to a Cytoscape-compatible data URI. */
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+const DEVICE_ICONS = {
+    // MS switch — content within x=10..54, y=14..50 (balanced padding)
+    ms: _svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <rect x="10" y="18" width="44" height="28" rx="4" fill="none" stroke="white" stroke-width="4"/>
+        <line x1="17" y1="27" x2="47" y2="27" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="17" y1="37" x2="47" y2="37" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <polyline points="24,22 17,27 24,32" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="40,32 47,37 40,42" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`),
+
+    // MX firewall — shield padded symmetrically
+    mx: _svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <path d="M32 8 L54 16 L54 33 C54 45 44 53 32 57 C20 53 10 45 10 33 L10 16 Z"
+              fill="none" stroke="white" stroke-width="4" stroke-linejoin="round"/>
+        <line x1="32" y1="22" x2="32" y2="46" stroke="white" stroke-width="4" stroke-linecap="round"/>
+        <line x1="20" y1="32" x2="44" y2="32" stroke="white" stroke-width="4" stroke-linecap="round"/>
+    </svg>`),
+
+    // MR/CW AP — box y=36..54, arcs up to y=12, total span y=12..54 (centre=33), padded sides
+    mr: _svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <rect x="10" y="37" width="44" height="16" rx="3" fill="none" stroke="white" stroke-width="4"/>
+        <line x1="32" y1="37" x2="32" y2="28" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M23 30 A13 13 0 0 1 41 30" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M17 24 A20 20 0 0 1 47 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <path d="M11 18 A28 28 0 0 1 53 18" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="21" cy="45" r="2.5" fill="white"/>
+        <circle cx="32" cy="45" r="2.5" fill="white"/>
+        <circle cx="43" cy="45" r="2.5" fill="white"/>
+    </svg>`),
+
+    // Router — circle with arrows, padded within 10..54
+    router: _svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <circle cx="32" cy="32" r="20" fill="none" stroke="white" stroke-width="4"/>
+        <line x1="32" y1="12" x2="32" y2="52" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <line x1="12" y1="32" x2="52" y2="32" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <polyline points="28,17 32,12 36,17" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="28,47 32,52 36,47" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="17,28 12,32 17,36" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="47,28 52,32 47,36" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`),
+
+    // Server — top bar y=12..26, bottom bar y=38..52, gap centred at y=32
+    other: _svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <rect x="10" y="12" width="44" height="16" rx="3" fill="none" stroke="white" stroke-width="4"/>
+        <rect x="10" y="36" width="44" height="16" rx="3" fill="none" stroke="white" stroke-width="4"/>
+        <circle cx="47" cy="20" r="3" fill="white"/>
+        <circle cx="47" cy="44" r="3" fill="white"/>
+        <line x1="17" y1="20" x2="38" y2="20" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <line x1="17" y1="44" x2="38" y2="44" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    </svg>`),
+};
+
+// Tinted background colours — slightly desaturated so the white icon pops
 const DEVICE_COLORS = {
-    mx:     '#e67e22',
-    ms:     '#2980b9',
-    mr:     '#27ae60',
-    router: '#c0392b',
-    other:  '#7f8c8d',
+    mx:     '#c07a3a',   // warm brown-orange
+    ms:     '#2471a3',   // steel blue
+    mr:     '#1e8449',   // forest green
+    router: '#922b21',   // dark red
+    other:  '#626567',   // mid grey
 };
 
 // Border width for room ring vs default
-const ROOM_BORDER_WIDTH  = 5;
+const ROOM_BORDER_WIDTH    = 5;
 const DEFAULT_BORDER_WIDTH = 2;
 
 function buildCytoscapeElements(topo) {
@@ -146,13 +207,13 @@ function buildCytoscapeElements(topo) {
     const elements = [];
 
     for (const device of topo.devices) {
-        const nodeColor  = DEVICE_COLORS[device.device_type] || DEVICE_COLORS.other;
-        const roomColor  = device.room_id ? (roomColorMap[device.room_id] || '#bdc3c7') : '#ffffff';
-        const borderW    = device.room_id ? ROOM_BORDER_WIDTH : DEFAULT_BORDER_WIDTH;
-        // Label: name + model only — room shown in legend, not cluttering the node
-        const label = [device.name, device.model].filter(Boolean).join('\n');
-        const nodeId = `device-${device.id}`;
-        const pos = savedPositions[nodeId];
+        const nodeColor = DEVICE_COLORS[device.device_type] || DEVICE_COLORS.other;
+        const roomColor = device.room_id ? (roomColorMap[device.room_id] || '#bdc3c7') : '#ffffff';
+        const borderW   = device.room_id ? ROOM_BORDER_WIDTH : DEFAULT_BORDER_WIDTH;
+        const icon      = DEVICE_ICONS[device.device_type] || DEVICE_ICONS.other;
+        const label     = [device.name, device.model].filter(Boolean).join('\n');
+        const nodeId    = `device-${device.id}`;
+        const pos       = savedPositions[nodeId];
         const el = {
             data: {
                 id: nodeId,
@@ -164,7 +225,8 @@ function buildCytoscapeElements(topo) {
                 nodeColor,
                 roomColor,
                 borderW,
-                roomId: device.room_id || null,
+                icon,
+                roomId:   device.room_id || null,
                 roomName: device.room_name || '',
             },
         };
@@ -203,41 +265,42 @@ function buildCytoscapeElements(topo) {
 
 function buildCytoscapeStyle() {
     return [
-        // Base device style — uses mapped data properties for colour/border
+        // ── All device nodes ────────────────────────────────────────────────
         {
             selector: 'node[type="device"]',
             style: {
-                'background-color':  'data(nodeColor)',
-                'border-color':      'data(roomColor)',
-                'border-width':      'data(borderW)',
-                'border-style':      'solid',
-                'label':             'data(label)',
-                'text-valign':       'bottom',
-                'text-halign':       'center',
-                'font-size':         '10px',
-                'color':             '#2c3e50',
-                'text-margin-y':     6,
-                'width':             46,
-                'height':            46,
-                'text-wrap':         'wrap',
-                'text-max-width':    '100px',
-                'shape':             'roundrectangle',
+                'shape':                    'roundrectangle',
+                'width':                    52,
+                'height':                   52,
+                'background-color':         'data(nodeColor)',
+                'background-image':         'data(icon)',
+                'background-fit':           'contain',
+                'background-clip':          'node',
+                'background-image-opacity': 1,
+                'border-color':             'data(roomColor)',
+                'border-width':             'data(borderW)',
+                'border-style':             'solid',
+                'label':                    'data(label)',
+                'text-valign':              'bottom',
+                'text-halign':              'center',
+                'font-size':                '10px',
+                'color':                    '#2c3e50',
+                'text-margin-y':            6,
+                'text-wrap':                'wrap',
+                'text-max-width':           '110px',
             },
         },
-        // MR/CW APs — triangle
-        { selector: 'node[deviceType="mr"]', style: { 'shape': 'triangle', 'width': 42, 'height': 42 } },
-        // MX routers — diamond
-        { selector: 'node[deviceType="mx"]', style: { 'shape': 'diamond', 'width': 50, 'height': 50 } },
-        // Unmanaged — dashed border ring, hexagon shape
+        // Unmanaged — dashed border, greyed fill, same icon
         {
             selector: 'node[isManaged="false"]',
             style: {
-                'border-style':  'dashed',
                 'background-color': '#7f8c8d',
-                'shape':         'hexagon',
+                'border-style':     'dashed',
+                'border-color':     '#566573',
+                'border-width':     2.5,
             },
         },
-        // Selected — bright orange outline, overrides room ring
+        // Selected — bright orange outline overrides room ring
         {
             selector: 'node:selected',
             style: {
@@ -246,56 +309,48 @@ function buildCytoscapeStyle() {
                 'border-style': 'solid',
             },
         },
-        // Edges
+        // ── Edges ────────────────────────────────────────────────────────────
         {
             selector: 'edge',
             style: {
-                'width': 2.5,
-                'line-color': '#95a5a6',
-                'target-arrow-shape': 'none',
-                'curve-style': 'bezier',
-                'opacity': 0.85,
-                'label': 'data(srcPort)',
-                'font-size': '9px',
-                'color': '#555',
-                'text-rotation': 'autorotate',
-                'text-margin-y': -7,
-                'text-background-color': '#eaf0f6',
-                'text-background-opacity': 0.85,
-                'text-background-padding': '1px',
+                'width':                    2.5,
+                'line-color':               '#95a5a6',
+                'target-arrow-shape':       'none',
+                'curve-style':              'bezier',
+                'opacity':                  0.85,
+                'label':                    'data(srcPort)',
+                'font-size':                '9px',
+                'color':                    '#555',
+                'text-rotation':            'autorotate',
+                'text-margin-y':            -7,
+                'text-background-color':    '#eaf0f6',
+                'text-background-opacity':  0.85,
+                'text-background-padding':  '1px',
             },
         },
         { selector: 'edge[linkType="lldp"]',   style: { 'line-color': '#5d8aa8' } },
         { selector: 'edge[linkType="cdp"]',    style: { 'line-color': '#1abc9c' } },
         { selector: 'edge[linkType="manual"]', style: { 'line-color': '#e67e22', 'line-style': 'dashed' } },
         { selector: 'edge:selected',           style: { 'line-color': '#f39c12', 'width': 3.5, 'opacity': 1 } },
-        // Port-click highlight — overrides all other edge styles
+        // Port-click highlight
         {
             selector: 'edge.highlighted',
             style: {
-                'line-color':            '#2ecc71',
-                'width':                 5,
-                'opacity':               1,
-                'line-style':            'solid',
-                'font-size':             '11px',
-                'font-weight':           'bold',
-                'color':                 '#27ae60',
-                'text-background-color': '#fff',
+                'line-color':              '#2ecc71',
+                'width':                   5,
+                'opacity':                 1,
+                'line-style':              'solid',
+                'font-size':               '11px',
+                'font-weight':             'bold',
+                'color':                   '#27ae60',
+                'text-background-color':   '#fff',
                 'text-background-opacity': 1,
                 'text-background-padding': '3px',
-                'z-index':               999,
+                'z-index':                 999,
             },
         },
-        // Dim all other edges when one is highlighted
-        {
-            selector: 'edge.dimmed',
-            style: { 'opacity': 0.15 },
-        },
-        // Dim nodes when a link is highlighted
-        {
-            selector: 'node.dimmed',
-            style: { 'opacity': 0.25 },
-        },
+        { selector: 'edge.dimmed', style: { 'opacity': 0.15 } },
+        { selector: 'node.dimmed', style: { 'opacity': 0.25 } },
     ];
 }
 
@@ -382,11 +437,11 @@ function renderLegend(topo) {
     }
 
     html += `<div class="legend-section"><strong>Device type</strong>
-        <div class="legend-item"><span class="legend-swatch" style="background:#2980b9;border-radius:3px;"></span> Switch (MS)</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:#e67e22;clip-path:polygon(50% 0%,100% 100%,0% 100%);transform:rotate(0deg);"></span> Firewall/Router (MX)</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:#27ae60;clip-path:polygon(50% 0%,100% 100%,0% 100%);"></span> Wireless AP (MR/CW)</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:#c0392b;border-radius:3px;"></span> Router</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:#7f8c8d;border:2px dashed #555;"></span> Unmanaged</div>
+        <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.ms};"><img src="${DEVICE_ICONS.ms}"></span> Switch (MS)</div>
+        <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.mx};"><img src="${DEVICE_ICONS.mx}"></span> Firewall (MX)</div>
+        <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.mr};"><img src="${DEVICE_ICONS.mr}"></span> Wireless AP (MR/CW)</div>
+        <div class="legend-item"><span class="legend-icon" style="background:${DEVICE_COLORS.router};"><img src="${DEVICE_ICONS.router}"></span> Router</div>
+        <div class="legend-item"><span class="legend-icon" style="background:#7f8c8d;border:2px dashed #566573;"><img src="${DEVICE_ICONS.other}"></span> Unmanaged</div>
     </div>
     <div class="legend-section"><strong>Links</strong>
         <div class="legend-item"><span class="legend-line" style="background:#5d8aa8;"></span> LLDP</div>
