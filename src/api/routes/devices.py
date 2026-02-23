@@ -7,9 +7,9 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from src.api.schemas import DeviceRead, DeviceRoomUpdate, DeviceUpdate, PortRead, UnmanagedDeviceCreate
+from src.api.schemas import DeviceRead, DeviceRoomUpdate, DeviceUpdate, LinkRead, ManualLinkCreate, PortRead, UnmanagedDeviceCreate
 from src.db.database import get_db
-from src.db.models import Device, DeviceRoom, Room
+from src.db.models import Device, DeviceRoom, Link, Port, Room
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -143,4 +143,69 @@ def assign_device_room(
     db.commit()
     db.refresh(device)
     return _device_to_read(device, db)
+
+
+@router.post("/link", response_model=LinkRead, status_code=201,
+             summary="Manually create a link between a port and a device")
+def create_manual_link(
+    body: ManualLinkCreate,
+    db: Session = Depends(get_db),
+) -> LinkRead:
+    """
+    Create a manual wired link between a source port and a destination device.
+
+    Use this for connections that can't be auto-discovered via LLDP/CDP,
+    e.g. an AP downstream port connected to a NUC.
+    """
+    port = db.get(Port, body.src_port_id)
+    if not port:
+        raise HTTPException(status_code=404, detail={"error": f"Port {body.src_port_id} not found"})
+    dst = db.get(Device, body.dst_device_id)
+    if not dst:
+        raise HTTPException(status_code=404, detail={"error": f"Device {body.dst_device_id} not found"})
+
+    # Remove any existing manual link from this port
+    db.query(Link).filter(
+        Link.src_port_id == body.src_port_id,
+        Link.link_type == "manual",
+    ).delete(synchronize_session="fetch")
+
+    link = Link(
+        src_device_id=port.device_id,
+        src_port_id=port.id,
+        dst_device_id=body.dst_device_id,
+        dst_port_id=None,
+        link_type="manual",
+        notes=body.notes or f"Manually linked to {dst.name}",
+    )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    logger.info(
+        "Manual link created: port %d → device %d (%s)",
+        port.id, dst.id, dst.name,
+    )
+    return LinkRead.model_validate(link)
+
+
+@router.delete("/link/{link_id}", status_code=204, summary="Delete a manual link")
+def delete_manual_link(
+    link_id: int,
+    db: Session = Depends(get_db),
+) -> None:
+    """
+    Delete a manual link by ID.  Only manual links can be deleted this way;
+    LLDP/CDP links are rebuilt on every scan.
+    """
+    link = db.get(Link, link_id)
+    if not link:
+        raise HTTPException(status_code=404, detail={"error": f"Link {link_id} not found"})
+    if link.link_type != "manual":
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "Only manual links can be deleted. LLDP/CDP links are managed by scans."},
+        )
+    db.delete(link)
+    db.commit()
+    logger.info("Manual link %d deleted", link_id)
 

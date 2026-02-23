@@ -122,6 +122,18 @@ async function createRoom(name, notes = '') {
     });
 }
 
+async function createManualLink(srcPortId, dstDeviceId) {
+    return await apiFetch('/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ src_port_id: srcPortId, dst_device_id: dstDeviceId }),
+    });
+}
+
+async function deleteManualLink(linkId) {
+    return await apiFetch(`/link/${linkId}`, { method: 'DELETE' });
+}
+
 // ─── Network device icons (inline SVG data URIs) ──────────────────────────────
 //
 // Cisco-style monochrome icons. Each SVG is white on a transparent background
@@ -589,17 +601,18 @@ function showDeviceDetail(deviceId) {
 }
 
 function buildPortTable(ports) {
-    // Build port DB id → link id lookup from current topology
-    const portLinkMap = {};
+    // Build port DB id → link lookup from current topology
+    const portLinkMap = {};    // port db-id → {id, link_type}
     if (topology) {
         for (const link of topology.links) {
-            if (link.src_port_id) portLinkMap[link.src_port_id] = link.id;
-            if (link.dst_port_id) portLinkMap[link.dst_port_id] = link.id;
+            if (link.src_port_id) portLinkMap[link.src_port_id] = link;
+            if (link.dst_port_id) portLinkMap[link.dst_port_id] = link;
         }
     }
 
     const rows = ports.map(p => {
-        const linkId = portLinkMap[p.id];
+        const link   = portLinkMap[p.id];
+        const linkId = link ? link.id : null;
         const rowAttrs = linkId
             ? `data-link-id="${linkId}" data-port-id="${p.id}" class="port-row port-linked"`
             : `data-port-id="${p.id}" class="port-row"`;
@@ -624,8 +637,17 @@ function buildPortTable(ports) {
             ? `<span title="${escHtml(p.neighbour.platform || '')} — port ${escHtml(p.neighbour.port_id || '')}">${escHtml(p.neighbour.device_id || '—')}</span>`
             : '—';
 
-        // Show a small graph icon on rows that have a link to click
+        // Link hint — click to highlight edge in graph
         const linkHint = linkId ? ' <span class="port-link-hint" title="Click to highlight link in graph">⇢</span>' : '';
+
+        // Action cell — manual link button (up ports with no auto-discovered neighbour),
+        // or unlink button (manual links only)
+        let actionCell = '';
+        if (link && link.link_type === 'manual') {
+            actionCell = `<button class="btn-port-action btn-unlink" data-link-id="${linkId}" title="Remove manual link">✕ Unlink</button>`;
+        } else if (!link && p.link_state === 'up' && !p.neighbour) {
+            actionCell = `<button class="btn-port-action btn-link-device" data-port-id="${p.id}" title="Manually link this port to a device">+ Link</button>`;
+        }
 
         return `<tr ${rowAttrs}>
             <td><strong>${escHtml(p.port_id)}</strong>${linkHint}${p.name ? `<br><span style="color:#95a5a6;font-size:0.7rem">${escHtml(p.name)}</span>` : ''}</td>
@@ -634,11 +656,12 @@ function buildPortTable(ports) {
             <td>${p.vlan != null ? p.vlan : '—'}</td>
             <td>${poeBadge}</td>
             <td>${nbr}</td>
+            <td>${actionCell}</td>
         </tr>`;
     }).join('');
 
     return `<div style="overflow-x:auto"><table class="port-table">
-        <thead><tr><th>Port</th><th>State</th><th>Speed</th><th>VLAN</th><th>PoE</th><th>Neighbour</th></tr></thead>
+        <thead><tr><th>Port</th><th>State</th><th>Speed</th><th>VLAN</th><th>PoE</th><th>Neighbour</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
     </table></div>`;
 }
@@ -826,35 +849,114 @@ function clearHighlight() {
 }
 
 function attachPortPanelEvents() {
-    /** Delegate click events on port rows in the port panel. */
+    /** Delegate click events on port rows and action buttons in the port panel. */
     const content = document.getElementById('port-panel-content');
 
     // Remove old listener by replacing the node
     const fresh = content.cloneNode(true);
     content.parentNode.replaceChild(fresh, content);
 
-    fresh.addEventListener('click', evt => {
+    fresh.addEventListener('click', async evt => {
+        // ── Unlink button ────────────────────────────────────────────────
+        const unlinkBtn = evt.target.closest('.btn-unlink');
+        if (unlinkBtn) {
+            const linkId = parseInt(unlinkBtn.dataset.linkId, 10);
+            try {
+                await deleteManualLink(linkId);
+                showToast('Manual link removed', 'success');
+                await reloadGraph();
+            } catch (err) { showToast(`Error: ${err.message}`, 'error'); }
+            return;
+        }
+
+        // ── Link button — show inline device picker ───────────────────────
+        const linkBtn = evt.target.closest('.btn-link-device');
+        if (linkBtn) {
+            const portId = parseInt(linkBtn.dataset.portId, 10);
+            showLinkPicker(linkBtn, portId);
+            return;
+        }
+
+        // ── Row click — highlight edge in graph ───────────────────────────
         const row = evt.target.closest('tr.port-row');
         if (!row) return;
-
         const linkId = row.dataset.linkId ? parseInt(row.dataset.linkId, 10) : null;
-
-        // Toggle off if clicking the already-highlighted row
         if (linkId && linkId === _highlightedLinkId) {
             clearHighlight();
             return;
         }
-
-        // Clear previous selection
         document.querySelectorAll('.port-row.active').forEach(r => r.classList.remove('active'));
         row.classList.add('active');
-
         if (linkId) {
             highlightLink(linkId);
         } else {
             clearHighlight();
         }
     });
+}
+
+function showLinkPicker(anchorBtn, portId) {
+    /** Show an inline device-picker dropdown anchored to the given button. */
+    // Remove any existing picker
+    document.querySelectorAll('.link-picker').forEach(el => el.remove());
+
+    const devices = (topology?.devices || [])
+        .filter(d => d.id !== (topology?.devices?.find(x =>
+            x.ports?.some(p => p.id === portId))?.id))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    const picker = document.createElement('div');
+    picker.className = 'link-picker';
+    picker.innerHTML = `
+        <div class="link-picker-title">Link port to device</div>
+        <input type="text" class="link-picker-search" placeholder="Filter devices…" autocomplete="off">
+        <div class="link-picker-list">
+            ${devices.map(d => `<div class="link-picker-item" data-device-id="${d.id}">${escHtml(d.name)}<span class="link-picker-model">${escHtml(d.model || '')}</span></div>`).join('')}
+        </div>
+        <button class="link-picker-cancel">Cancel</button>
+    `;
+
+    // Position below the button
+    const rect = anchorBtn.getBoundingClientRect();
+    const panelRect = document.getElementById('port-panel').getBoundingClientRect();
+    picker.style.left = `${rect.left - panelRect.left}px`;
+    picker.style.bottom = `${panelRect.bottom - rect.top + 4}px`;
+    document.getElementById('port-panel').appendChild(picker);
+
+    // Filter
+    picker.querySelector('.link-picker-search').addEventListener('input', e => {
+        const q = e.target.value.toLowerCase();
+        picker.querySelectorAll('.link-picker-item').forEach(item => {
+            item.style.display = item.textContent.toLowerCase().includes(q) ? '' : 'none';
+        });
+    });
+    picker.querySelector('.link-picker-search').focus();
+
+    // Cancel
+    picker.querySelector('.link-picker-cancel').addEventListener('click', () => picker.remove());
+
+    // Pick a device
+    picker.querySelector('.link-picker-list').addEventListener('click', async e => {
+        const item = e.target.closest('.link-picker-item');
+        if (!item) return;
+        const dstDeviceId = parseInt(item.dataset.deviceId, 10);
+        picker.remove();
+        try {
+            await createManualLink(portId, dstDeviceId);
+            showToast('Manual link created', 'success');
+            await reloadGraph();
+        } catch (err) { showToast(`Error: ${err.message}`, 'error'); }
+    });
+
+    // Close on outside click
+    setTimeout(() => {
+        document.addEventListener('click', function close(e) {
+            if (!picker.contains(e.target)) {
+                picker.remove();
+                document.removeEventListener('click', close);
+            }
+        });
+    }, 0);
 }
 
 function buildAnnotationForm(device) {

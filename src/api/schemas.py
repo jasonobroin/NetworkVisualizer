@@ -153,6 +153,18 @@ class LinkRead(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Manual link schema
+# ---------------------------------------------------------------------------
+
+class ManualLinkCreate(BaseModel):
+    """Request body for manually creating a link between a port and a device."""
+
+    src_port_id: int = Field(description="DB id of the source port")
+    dst_device_id: int = Field(description="DB id of the destination device")
+    notes: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # Topology schema (composite for the frontend)
 # ---------------------------------------------------------------------------
 
