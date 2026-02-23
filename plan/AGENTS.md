@@ -7,19 +7,17 @@ Every agent working on this project **must** read and follow these rules before 
 
 ## 1. Path Handling
 
-The project owner's username contains a single quote (`o'broin`), which **will break shell commands if not escaped properly**.
-
-**Always escape paths in shell commands** using one of these forms:
+The project path may contain special characters (e.g. a single quote in a username).
+**Always quote paths in shell commands** — double quotes are simplest:
 
 ```bash
-# Correct — wrap in single quotes with escaped quote
-cd '/Users/jason.o'\''broin/PycharmProjects/NetworkVisualizer'
-
-# Correct — use double quotes
-cd "/Users/jason.o'broin/PycharmProjects/NetworkVisualizer"
+# Safe — use double quotes around any path that may contain special characters
+cd "/path/to/NetworkVisualizer"
 ```
 
-**Never** use unescaped single quotes in any shell command, script, Dockerfile, or Makefile.
+If using single quotes, a literal `'` must be escaped as `'\''`.
+
+**Never** use an unquoted path in any shell command, script, Dockerfile, or Makefile.
 
 ---
 
@@ -35,9 +33,8 @@ cd "/Users/jason.o'broin/PycharmProjects/NetworkVisualizer"
 
 ## 3. Filesystem Boundaries
 
-- Agents **must only** read or write files within the project directory:
-  `/Users/jason.o'broin/PycharmProjects/NetworkVisualizer/`
-- **Never** write to, delete from, or modify any path outside this directory.
+- Agents **must only** read or write files within the project directory.
+- **Never** write to, delete from, or modify any path outside the project root.
 - **Never** run `rm -rf` on any path without explicit human confirmation.
 
 ---

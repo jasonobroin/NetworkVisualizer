@@ -29,8 +29,6 @@ Edit `.env` and add your Meraki API key:
 MERAKI_API_KEY=your_actual_key_here
 ```
 
-> ⚠️ **Never commit `.env`** — it is protected by `.gitignore`.
-
 ---
 
 ## Run
@@ -76,10 +74,10 @@ Re-run a scan to repopulate from Meraki.
 
 ## Local Development (without Docker)
 
-> Note: the path to this project contains a single quote in the username.
-> Always quote the path in shell commands:
+> Note: if your username or path contains special characters (e.g. a single quote),
+> always quote the full path in shell commands:
 > ```bash
-> cd "/Users/jason.o'broin/PycharmProjects/NetworkVisualizer"
+> cd "/path/to/NetworkVisualizer"
 > ```
 
 ```bash

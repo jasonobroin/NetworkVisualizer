@@ -7,15 +7,13 @@ applyTo: "**"
 These instructions apply to all files in this project.
 
 ## Path Handling
-The project owner's username contains a single quote (`o'broin`).
-**Always escape paths in shell commands:**
+The project path may contain special characters (e.g. a single quote in a username).
+**Always quote paths in shell commands** — double quotes are simplest:
 ```bash
-# Correct
-cd '/Users/jason.o'\''broin/PycharmProjects/NetworkVisualizer'
-# Also correct
-cd "/Users/jason.o'broin/PycharmProjects/NetworkVisualizer"
+cd "/path/to/NetworkVisualizer"
 ```
-Never use an unescaped single quote inside a single-quoted shell string.
+If using single quotes, a literal `'` must be escaped as `'\''`.
+Never use an unquoted path in any shell command or script.
 
 ## Secrets & API Keys
 - Never hardcode API keys, tokens, or passwords.
