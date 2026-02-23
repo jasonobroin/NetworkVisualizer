@@ -602,16 +602,52 @@ function showDeviceDetail(deviceId) {
 
 function buildPortTable(ports) {
     // Build port DB id → link lookup from current topology
-    const portLinkMap = {};    // port db-id → {id, link_type}
+    const portLinkMap = {};    // port db-id → link
+    // Also build device id → links where this device is the dst (no dst_port_id recorded)
+    const dstDeviceLinkMap = {};  // device id → link[]
     if (topology) {
         for (const link of topology.links) {
             if (link.src_port_id) portLinkMap[link.src_port_id] = link;
             if (link.dst_port_id) portLinkMap[link.dst_port_id] = link;
+            // Index by dst_device_id for ports that appear only as link destinations
+            if (link.dst_device_id) {
+                if (!dstDeviceLinkMap[link.dst_device_id]) dstDeviceLinkMap[link.dst_device_id] = [];
+                dstDeviceLinkMap[link.dst_device_id].push(link);
+            }
         }
     }
 
+    // Build device id → device lookup for resolving neighbour names
+    const deviceMap = {};
+    if (topology) {
+        for (const d of topology.devices) deviceMap[d.id] = d;
+    }
+
+    // Find the device that owns these ports (needed for dst-side link lookup)
+    const ownerDevice = topology?.devices?.find(d => d.ports?.some(p => ports.some(pp => pp.id === p.id)));
+
     const rows = ports.map(p => {
-        const link   = portLinkMap[p.id];
+        // Primary: port appears directly in a link as src or dst port
+        let link = portLinkMap[p.id];
+
+        // Secondary: port's device is the dst of a link and this port has a
+        // neighbour device_id that matches the link's src device MAC/name.
+        // This covers AP uplink ports where only src_port_id is stored.
+        if (!link && ownerDevice && p.neighbour?.device_id) {
+            const candidates = dstDeviceLinkMap[ownerDevice.id] || [];
+            // Pick the candidate whose src_device matches the neighbour device_id
+            // (by MAC or name — just pick the first match to this device's port neighbour)
+            link = candidates.find(l => {
+                const srcDev = deviceMap[l.src_device_id];
+                if (!srcDev) return false;
+                const nbrLower = p.neighbour.device_id.toLowerCase();
+                return (
+                    (srcDev.mac && srcDev.mac.toLowerCase() === nbrLower) ||
+                    srcDev.name.toLowerCase() === nbrLower
+                );
+            }) || (candidates.length === 1 ? candidates[0] : null);
+        }
+
         const linkId = link ? link.id : null;
         const rowAttrs = linkId
             ? `data-link-id="${linkId}" data-port-id="${p.id}" class="port-row port-linked"`
@@ -633,9 +669,31 @@ function buildPortTable(ports) {
             poeBadge = `<span class="badge badge-poe-off">${p.poe_enabled ? 'Enabled' : 'Off'}</span>`;
         }
 
-        const nbr = p.neighbour
-            ? `<span title="${escHtml(p.neighbour.platform || '')} — port ${escHtml(p.neighbour.port_id || '')}">${escHtml(p.neighbour.device_id || '—')}</span>`
-            : '—';
+        // Neighbour display — prefer resolved device name from the link over raw MAC
+        let nbrHtml = '—';
+        if (link) {
+            // The neighbour is whichever end of the link is NOT this port's device
+            const nbrDeviceId = link.dst_device_id === ownerDevice?.id
+                ? link.src_device_id
+                : link.dst_device_id;
+            const nbrDevice = nbrDeviceId ? deviceMap[nbrDeviceId] : null;
+            const displayName = nbrDevice
+                ? nbrDevice.name
+                : (p.neighbour?.device_id || '—');
+            const tooltip = [
+                p.neighbour?.platform,
+                p.neighbour?.port_id ? `port ${p.neighbour.port_id}` : null,
+                nbrDevice?.model,
+            ].filter(Boolean).join(' — ');
+            nbrHtml = `<span title="${escHtml(tooltip)}">${escHtml(displayName)}</span>`;
+        } else if (p.neighbour?.device_id) {
+            // No resolved link yet — show raw CDP/LLDP device_id with platform tooltip
+            const tooltip = [
+                p.neighbour.platform,
+                p.neighbour.port_id ? `port ${p.neighbour.port_id}` : null,
+            ].filter(Boolean).join(' — ');
+            nbrHtml = `<span title="${escHtml(tooltip)}" class="nbr-unresolved">${escHtml(p.neighbour.device_id)}</span>`;
+        }
 
         // Link hint — click to highlight edge in graph
         const linkHint = linkId ? ' <span class="port-link-hint" title="Click to highlight link in graph">⇢</span>' : '';
@@ -655,7 +713,7 @@ function buildPortTable(ports) {
             <td>${escHtml(p.speed || '—')}</td>
             <td>${p.vlan != null ? p.vlan : '—'}</td>
             <td>${poeBadge}</td>
-            <td>${nbr}</td>
+            <td>${nbrHtml}</td>
             <td>${actionCell}</td>
         </tr>`;
     }).join('');

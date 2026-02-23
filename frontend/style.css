@@ -521,6 +521,13 @@ tr.port-row.active td:first-child {
 }
 .btn-unlink:hover { background: #c0392b; color: #fff; }
 
+/* Unresolved neighbour — raw MAC or hostname, not yet in DB */
+.nbr-unresolved {
+    color: #95a5a6;
+    font-style: italic;
+    font-size: 0.78rem;
+}
+
 /* ── Link picker popup ───────────────────────────────── */
 .link-picker {
     position: absolute;
