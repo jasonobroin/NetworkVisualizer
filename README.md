@@ -18,7 +18,7 @@ Rooms act as grouping containers. A manual **Rescan** button triggers fresh disc
 ## Setup
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/jasonobroin/NetworkVisualizer.git
 cd NetworkVisualizer
 cp .env.example .env
 ```
