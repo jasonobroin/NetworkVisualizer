@@ -98,6 +98,11 @@ via a dropdown. A manual "Rescan" button triggers fresh discovery.
 - [x] Device counts shown per room and per device type in legend; zero-count types omitted
 - [x] `ScanMeta` DB table added — stores org name, org ID, network names, last scan timestamp
 - [x] Network info header bar added below toolbar — shows org name, Meraki network names, total device count, last scan time (populated on first rescan)
+- [x] Unresolved CDP/LLDP neighbours auto-create unmanaged placeholder devices (e.g. `Jason-9800-L`) so links are visible; keyed on `cdp:<hostname>` synthetic serial to avoid duplicates on rescan; device type inferred from platform string
+- [x] Manual link creation — `+ Link` button on UP ports with no auto-discovered neighbour; inline device picker with filter; `POST /api/link` endpoint; manual links survive rescan
+- [x] Manual link deletion — `✕ Unlink` button on ports with a manual link; `DELETE /api/link/{id}` endpoint; LLDP/CDP links protected from manual deletion
+- [x] Port neighbour column shows resolved device name (from link graph) instead of raw MAC address; unresolved neighbours shown in muted italic; tooltip includes platform + remote port
+- [x] AP uplink port neighbour resolution fixed — links stored with `src_port_id` (switch side) now correctly resolve to the AP's friendly name via `dst_device_id` lookup; direction logic corrected
 
 ---
 
