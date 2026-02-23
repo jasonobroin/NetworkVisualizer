@@ -95,6 +95,9 @@ via a dropdown. A manual "Rescan" button triggers fresh discovery.
 - [x] Click Room / Device type / Link type in legend to highlight matching nodes/edges; all others dim
 - [x] Viewport saved before highlight and restored (animated) when highlight is cleared
 - [x] Clicking the same legend item again, or the canvas background, clears the highlight
+- [x] Device counts shown per room and per device type in legend; zero-count types omitted
+- [x] `ScanMeta` DB table added — stores org name, org ID, network names, last scan timestamp
+- [x] Network info header bar added below toolbar — shows org name, Meraki network names, total device count, last scan time (populated on first rescan)
 
 ---
 

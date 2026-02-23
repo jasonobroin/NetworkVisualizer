@@ -208,23 +208,33 @@ def seed_from_discovery(
             """Convert integer back to colon-separated MAC string."""
             return ":".join(f"{(n >> (i * 8)) & 0xFF:02x}" for i in reversed(range(6)))
 
+        # Strategy 5: also index truncated hostnames — CDP device_id is sometimes
+        # the short hostname (e.g. "Jason-9800-L") while the DB device name has a
+        # suffix (e.g. "Jason-9800-CL").  Build a secondary lookup keyed on the
+        # first token before any trailing variant suffix.
+        # Also build a model → device map for platform-string matching (Strategy 6).
+        model_to_device: dict[str, Device] = {}
+        for dev in all_devices:
+            if dev.model:
+                model_to_device[dev.model.lower().strip()] = dev
+
         def _resolve_neighbour(device_id: str, platform: str | None) -> Device | None:
             """
             Resolve an LLDP/CDP neighbour device_id to a Device in the database.
 
             Strategies tried in order:
-            1. Exact MAC match — works for most managed Meraki devices
-            2. MAC ± small offset — Meraki APs advertise a bridge/radio MAC via LLDP
-               that differs from their management MAC by a small offset (typically
-               within ±16 of the last two octets)
-            3. Case-insensitive name/hostname match — CDP device_id is often a hostname
-            4. Serial number match — some devices advertise their serial via CDP
+            1. Exact MAC match
+            2. MAC ± small offset (Meraki AP radio vs management MAC)
+            3. Case-insensitive name/hostname exact match
+            4. Platform string contains a known device name or serial
             """
             normalised = device_id.lower().strip()
 
-            # Strategy 1: exact MAC
-            if ":" in normalised or "-" in normalised:
-                match = mac_to_device.get(normalised.replace("-", ":"))
+            # Strategy 1: exact MAC (only attempt if it looks like a MAC address)
+            parts = normalised.replace("-", ":").split(":")
+            if len(parts) == 6 and all(len(p) <= 2 for p in parts):
+                mac_norm = normalised.replace("-", ":")
+                match = mac_to_device.get(mac_norm)
                 if match:
                     return match
 
@@ -243,7 +253,7 @@ def seed_from_discovery(
                             )
                             return match
 
-            # Strategy 3: hostname / name match (CDP often sends sysName)
+            # Strategy 3: exact hostname / name match
             match = name_to_device.get(normalised)
             if match:
                 return match
@@ -254,6 +264,79 @@ def seed_from_discovery(
                     if name and name in platform.lower():
                         return dev
 
+            return None
+
+        def _get_or_create_placeholder(
+            session: Session,
+            device_id: str,
+            platform: str | None,
+            ip: str | None,
+        ) -> Device:
+            """
+            Return an existing unmanaged placeholder for this neighbour device_id,
+            or create one if it doesn't exist yet.
+
+            Placeholders are created for CDP/LLDP neighbours that cannot be
+            resolved to a known managed device — e.g. non-Meraki gear seen via CDP.
+            The device_id (usually a hostname) is used as the serial key so we
+            don't create duplicates on re-scan.
+            """
+            # Use a synthetic serial: "cdp:<device_id>" to avoid clashing with
+            # real Meraki serials
+            synthetic_serial = f"cdp:{device_id}"
+            existing = session.query(Device).filter_by(serial=synthetic_serial).first()
+            if existing:
+                # Refresh IP/platform if we have better info now
+                if ip and not existing.ip:
+                    existing.ip = ip
+                return existing
+
+            # Derive a device type from the platform string if possible
+            dev_type = "other"
+            if platform:
+                p = platform.upper()
+                if any(x in p for x in ("MS", "SWITCH", "CATALYST")):
+                    dev_type = "ms"
+                elif any(x in p for x in ("MR", "CW", "ACCESS POINT", "AIR-AP", "AP SOFTWARE")):
+                    dev_type = "mr"
+                elif any(x in p for x in ("MX", "FIREWALL", "ASA")):
+                    dev_type = "mx"
+                elif any(x in p for x in ("C9800", "WLC", "WIRELESS LAN")):
+                    dev_type = "other"
+
+            placeholder = Device(
+                serial=synthetic_serial,
+                name=device_id,            # use the CDP hostname as display name
+                model=_extract_model(platform) or "Unknown",
+                device_type=dev_type,
+                is_managed=False,          # unmanaged — user can annotate
+                ip=ip,
+                notes=f"Auto-created from CDP/LLDP neighbour data. Platform: {platform or '—'}",
+            )
+            session.add(placeholder)
+            session.flush()
+            logger.info(
+                "Created placeholder device %r (serial=%s) from CDP/LLDP",
+                device_id, synthetic_serial,
+            )
+            # Add to lookup so subsequent ports on this scan resolve to it
+            name_to_device[device_id.lower().strip()] = placeholder
+            return placeholder
+
+        def _extract_model(platform: str | None) -> str | None:
+            """
+            Attempt to extract a model string from a CDP platform field.
+            e.g. "cisco C9800-L-C-K9" → "C9800-L-C-K9"
+            """
+            if not platform:
+                return None
+            # Take the last whitespace-separated token if it looks like a model
+            tokens = platform.strip().split()
+            if tokens:
+                candidate = tokens[-1]
+                # Looks like a model if it contains letters and digits/hyphens
+                if any(c.isalpha() for c in candidate) and any(c.isdigit() for c in candidate):
+                    return candidate
             return None
 
         # Track already-added links to deduplicate bidirectional LLDP pairs
@@ -275,11 +358,14 @@ def seed_from_discovery(
                     )
 
                     if dst_device is None:
-                        logger.debug(
-                            "Could not resolve LLDP/CDP neighbour %r on %s port %s",
-                            neighbour.device_id, dev_info.serial, port_info.port_id,
+                        # Can't resolve to a known device — create an unmanaged
+                        # placeholder so the link is still visible in the UI.
+                        dst_device = _get_or_create_placeholder(
+                            session,
+                            neighbour.device_id,
+                            neighbour.platform,
+                            neighbour.ip_address,
                         )
-                        continue
 
                     # Deduplicate: LLDP reports both sides of every link
                     link_key = frozenset([src_device.id, dst_device.id])
